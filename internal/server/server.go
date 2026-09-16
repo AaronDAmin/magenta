@@ -11,15 +11,17 @@ import (
 
 	"github.com/AaronDAmin/magenta/internal/config"
 	"github.com/AaronDAmin/magenta/internal/media"
+	"github.com/AaronDAmin/magenta/internal/stream"
 )
 
 // Server encapsule le serveur HTTP et ses dépendances.
 type Server struct {
-	http   *http.Server  // serveur HTTP standard de la bibliothèque Go
-	cfg    *config.Config
-	log    *slog.Logger
-	router *http.ServeMux // routeur interne
-	index  *media.Index   // index des médias
+	http          *http.Server     // serveur HTTP standard de la bibliothèque Go
+	cfg           *config.Config
+	log           *slog.Logger
+	router        *http.ServeMux   // routeur interne
+	index         *media.Index     // index des médias
+	streamHandler *stream.Handler  // handler de streaming
 }
 
 // New crée et configure un nouveau Server prêt à démarrer.
@@ -28,10 +30,11 @@ func New(cfg *config.Config, log *slog.Logger, index *media.Index) *Server {
 	mux := http.NewServeMux()
 
 	s := &Server{
-		cfg:    cfg,
-		log:    log,
-		router: mux,
-		index:  index,
+		cfg:           cfg,
+		log:           log,
+		router:        mux,
+		index:         index,
+		streamHandler: stream.NewHandler(log, index),
 	}
 
 	// Enregistrement des routes — chaque groupe de routes est isolé
@@ -105,8 +108,9 @@ func (s *Server) registerRoutes() {
 	// Route de l'index des médias — retourne la liste complète des fichiers indexés
 	s.router.HandleFunc("GET /api/media", s.handleMediaList)
 
-	// TODO (Étape 4) : routes de streaming
-	// s.router.HandleFunc("GET /stream/{id}", s.handleStream)
+	// Route de streaming — diffuse un fichier multimédia par son ID
+	// Supporte les range requests pour le scrubbing vidéo dans VLC
+	s.router.HandleFunc("GET /stream/{id}", s.streamHandler.ServeStream)
 
 	// TODO (Étape 5) : routes d'administration des appareils
 	// s.router.HandleFunc("GET /admin/devices", s.handleDeviceList)
