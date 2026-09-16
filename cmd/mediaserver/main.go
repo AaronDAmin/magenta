@@ -19,6 +19,7 @@ import (
 	"github.com/AaronDAmin/magenta/internal/logger"
 	"github.com/AaronDAmin/magenta/internal/mdns"
 	"github.com/AaronDAmin/magenta/internal/media"
+	"github.com/AaronDAmin/magenta/internal/network"
 	"github.com/AaronDAmin/magenta/internal/server"
 	internaltls "github.com/AaronDAmin/magenta/internal/tls"
 )
@@ -141,6 +142,16 @@ func main() {
 	}
 
 	srv.Start()
+
+	// --- Affichage du banner avec les URLs et le QR code ---
+	mdnsName := ""
+	if cfg.MDNS.Enabled {
+		mdnsName = cfg.MDNS.Name
+	}
+	network.PrintBanner(network.AccessInfo{
+		Port: cfg.Server.Port,
+		Name: mdnsName,
+	})
 
 	// Attente du signal d'arrêt
 	<-ctx.Done()
