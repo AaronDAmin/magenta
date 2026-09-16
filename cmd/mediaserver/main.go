@@ -11,9 +11,11 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/AaronDAmin/magenta/internal/config"
 	"github.com/AaronDAmin/magenta/internal/logger"
+	"github.com/AaronDAmin/magenta/internal/server"
 )
 
 // version est injectée au moment du build via -ldflags.
@@ -57,15 +59,22 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// --- TODO (Étape 2) : initialisation et démarrage du serveur HTTP ---
-	// server := server.New(cfg, log)
-	// server.Start(ctx)
+	// --- Initialisation et démarrage du serveur HTTP ---
+	srv := server.New(cfg, log)
+	srv.Start()
 
 	// Attente du signal d'arrêt
 	<-ctx.Done()
 	log.Info("signal d'arrêt reçu, extinction en cours...")
 
-	// TODO (Étape 2) : appel server.Shutdown()
+	// Arrêt propre avec un timeout de 10 secondes pour laisser les connexions actives se terminer
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Error("erreur lors de l'arrêt du serveur", slog.String("erreur", err.Error()))
+		os.Exit(1)
+	}
 
 	log.Info("magenta arrêté proprement")
 }
