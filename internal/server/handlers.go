@@ -5,6 +5,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -224,6 +225,59 @@ func (s *Server) handlePlaylist(w http.ResponseWriter, r *http.Request) {
 		"dossier", folder,
 		"fichiers", len(medias),
 		"ip", r.RemoteAddr,
+	)
+}
+
+// handleVLC génère un fichier .m3u à un seul élément pour ouvrir directement dans VLC.
+// Le navigateur télécharge le fichier, VLC l'ouvre automatiquement (association de fichier).
+// Route : GET /stream/{id}/vlc?token=xyz
+func (s *Server) handleVLC(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "ID manquant", http.StatusBadRequest)
+		return
+	}
+
+	m := s.index.Get(id)
+	if m == nil {
+		http.Error(w, "Média introuvable", http.StatusNotFound)
+		return
+	}
+
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		// Essai depuis le cookie
+		if cookie, err := r.Cookie("magenta_token"); err == nil {
+			token = cookie.Value
+		}
+	}
+
+	// Construction de l'URL de streaming
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	streamURL := fmt.Sprintf("%s://%s/stream/%s", scheme, r.Host, id)
+	if token != "" {
+		streamURL += "?token=" + url.QueryEscape(token)
+	}
+
+	// Nom du fichier .m3u basé sur le nom du média
+	filename := strings.TrimSuffix(m.Name, "."+m.Extension) + ".m3u"
+
+	// Headers pour déclencher le téléchargement
+	w.Header().Set("Content-Type", "audio/x-mpegurl")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+
+	// Contenu M3U minimal — VLC l'ouvre directement
+	fmt.Fprintln(w, "#EXTM3U")
+	fmt.Fprintf(w, "#EXTINF:-1,%s\n", m.Name)
+	fmt.Fprintln(w, streamURL)
+
+	s.log.Info("fichier VLC généré",
+		slog.String("id", id),
+		slog.String("nom", m.Name),
+		slog.String("ip", r.RemoteAddr),
 	)
 }
 

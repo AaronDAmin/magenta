@@ -119,6 +119,49 @@
             color: var(--text-secondary);
         }
 
+        /* ── Boutons action ── */
+        .media-actions {
+            display: flex;
+            gap: 0.4rem;
+            padding: 0 0.75rem 0.75rem;
+        }
+
+        .btn-play {
+            flex: 1;
+            padding: 0.4rem 0;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            width: auto;
+        }
+
+        .btn-play:hover { background: var(--accent-hover); }
+
+        .btn-vlc {
+            flex: 1;
+            padding: 0.4rem 0;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: auto;
+        }
+
+        .btn-vlc:hover {
+            background: #FF7B00;
+            color: white;
+            border-color: #FF7B00;
+        }
+
         /* ── Header / Controls ── */
         .page-header {
             background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
@@ -296,6 +339,7 @@
 
         // ── Card HTML ──────────────────────────────────────────────────────────
         function cardHTML(m) {
+            const token = getToken();
             return `
                 <div class="media-card" data-id="${m.id}">
                     <div class="media-placeholder">
@@ -306,8 +350,60 @@
                         <div class="media-name" title="${escHtml(m.name)}">${escHtml(m.name)}</div>
                         <div class="media-size">${formatSize(m.size)}</div>
                     </div>
+                    <div class="media-actions">
+                        <button class="btn-play" onclick="event.stopPropagation(); window.location.href='/player?id=${m.id}'">▶ Lire</button>
+                        <button class="btn-vlc" onclick="event.stopPropagation(); openVLC('${m.id}', '${token}')">📺 VLC</button>
+                    </div>
                 </div>
             `;
+        }
+
+        // ── Ouverture VLC selon la plateforme ──────────────────────────────────
+        // Détecte automatiquement l'appareil et utilise la meilleure méthode :
+        // - PC (Windows/Mac/Linux) → protocole vlc:// (pas de téléchargement)
+        // - Android                → intent:// VLC direct (pas de téléchargement)
+        // - iOS                    → téléchargement .m3u (seule option sur iOS)
+        function openVLC(mediaId, token) {
+            const host = location.host;
+            const ua = navigator.userAgent;
+
+            // URL de stream complète
+            const streamURL = `http://${host}/stream/${mediaId}?token=${encodeURIComponent(token)}`;
+
+            if (/Android/i.test(ua)) {
+                // Android : ouvre directement VLC via intent Android
+                // Nécessite VLC installé (org.videolan.vlc)
+                const intentURL = `intent://${host}/stream/${mediaId}?token=${encodeURIComponent(token)}#Intent;package=org.videolan.vlc;scheme=http;end`;
+                window.location = intentURL;
+
+            } else if (/iPhone|iPad|iPod/i.test(ua)) {
+                // iOS : pas de protocole custom fiable → téléchargement .m3u
+                // VLC iOS ouvre les .m3u automatiquement
+                window.location = `/stream/${mediaId}/vlc?token=${encodeURIComponent(token)}`;
+
+            } else {
+                // PC (Windows, Mac, Linux) : protocole vlc://
+                // VLC doit être installé et enregistré comme handler vlc://
+                // Si ça ne fonctionne pas (VLC non installé), on fallback sur le .m3u
+                const vlcURI = `vlc://${streamURL}`;
+
+                // Tentative d'ouverture via vlc://
+                // On utilise un iframe caché pour éviter de naviguer si le protocole échoue
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
+                iframe.src = vlcURI;
+
+                // Fallback après 1.5s : si VLC ne s'est pas ouvert, télécharge le .m3u
+                setTimeout(() => {
+                    document.body.removeChild(iframe);
+                    // On vérifie si la page est toujours visible (si VLC n'a pas pris le focus)
+                    if (!document.hidden) {
+                        // VLC ne s'est probablement pas ouvert, fallback .m3u
+                        window.location = `/stream/${mediaId}/vlc?token=${encodeURIComponent(token)}`;
+                    }
+                }, 1500);
+            }
         }
 
         // ── Icône de groupe selon le contenu ───────────────────────────────────

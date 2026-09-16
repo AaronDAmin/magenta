@@ -149,6 +149,8 @@ func (s *Server) registerRoutes() {
 	s.router.Handle("GET /api/folders", authMiddleware(http.HandlerFunc(s.handleFolders)))
 	s.router.Handle("GET /api/playlist", authMiddleware(http.HandlerFunc(s.handlePlaylist)))
 	s.router.Handle("GET /stream/{id}", authMiddleware(http.HandlerFunc(s.streamHandler.ServeStream)))
+	// Route VLC — retourne un .m3u pour ouvrir directement dans VLC
+	s.router.Handle("GET /stream/{id}/vlc", authMiddleware(http.HandlerFunc(s.handleVLC)))
 
 	// Routes d'administration (accessibles uniquement depuis localhost, gérées par le middleware)
 	s.router.Handle("GET /admin/devices", authMiddleware(http.HandlerFunc(s.adminHandler.HandleList)))
