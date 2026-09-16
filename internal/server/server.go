@@ -146,6 +146,7 @@ func (s *Server) registerRoutes() {
 	authMiddleware := auth.Middleware(s.authStore, s.log)
 	s.router.Handle("GET /api/media", authMiddleware(http.HandlerFunc(s.handleMediaList)))
 	s.router.Handle("GET /api/media/{id}/next", authMiddleware(http.HandlerFunc(s.handleMediaNext)))
+	s.router.Handle("GET /api/folders", authMiddleware(http.HandlerFunc(s.handleFolders)))
 	s.router.Handle("GET /api/playlist", authMiddleware(http.HandlerFunc(s.handlePlaylist)))
 	s.router.Handle("GET /stream/{id}", authMiddleware(http.HandlerFunc(s.streamHandler.ServeStream)))
 

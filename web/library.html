@@ -3,165 +3,351 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Magenta - Bibliothèque</title>
+    <title>Magenta</title>
     <link rel="stylesheet" href="/static/style.css">
+    <style>
+        /* ── Sections par groupe ── */
+        .section {
+            margin-bottom: 3rem;
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.25rem;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .section-count {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+            font-weight: 500;
+        }
+
+        .section-toggle {
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+            transition: transform 0.2s;
+        }
+
+        .section-toggle.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .section-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 1.25rem;
+            transition: opacity 0.2s;
+        }
+
+        .section-grid.collapsed {
+            display: none;
+        }
+
+        /* ── Card ── */
+        .media-card {
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+            border: 1px solid var(--border);
+            position: relative;
+        }
+
+        .media-card:hover {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+            border-color: var(--accent);
+        }
+
+        .media-placeholder {
+            width: 100%;
+            height: 130px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #1f1f1f, #2a2a2a);
+            position: relative;
+        }
+
+        .media-ext-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: rgba(0,0,0,0.7);
+            color: var(--text-secondary);
+            font-size: 0.65rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .media-info {
+            padding: 0.75rem;
+        }
+
+        .media-name {
+            font-size: 0.85rem;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-bottom: 0.3rem;
+            color: var(--text-primary);
+        }
+
+        .media-size {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        /* ── Header / Controls ── */
+        .page-header {
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+            padding: 1rem 0 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(8px);
+        }
+
+        .header-inner {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .search-bar {
+            flex: 1;
+            min-width: 220px;
+            max-width: 400px;
+            position: relative;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 0.6rem 1rem 0.6rem 2.5rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+
+        .search-bar::before {
+            content: '🔍';
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.85rem;
+            pointer-events: none;
+        }
+
+        .stats {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            white-space: nowrap;
+        }
+
+        /* ── Empty state ── */
+        .empty {
+            text-align: center;
+            padding: 5rem 2rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 600px) {
+            .section-grid {
+                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+                gap: 0.75rem;
+            }
+            .header-inner {
+                padding: 0 1rem 1rem;
+            }
+        }
+    </style>
 </head>
 <body>
-    <header>
-        <div class="container">
+    <div class="page-header">
+        <div class="header-inner">
             <a href="/" class="logo">🎬 Magenta</a>
-            <div style="color: var(--text-secondary);" id="mediaCount">Chargement...</div>
-        </div>
-    </header>
-
-    <div class="container">
-        <div class="controls">
-            <div class="search-box">
-                <input 
-                    type="text" 
-                    id="searchInput" 
-                    placeholder="🔍 Rechercher un film ou une série..."
-                >
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Rechercher...">
             </div>
-            <div class="filter-group">
-                <button class="filter-btn active" data-folder="all">Tous</button>
-                <button class="filter-btn" data-folder="films">Films</button>
-                <button class="filter-btn" data-folder="series">Séries</button>
-            </div>
+            <div class="stats" id="stats">Chargement...</div>
         </div>
+    </div>
 
-        <div id="mediaGrid" class="media-grid">
-            <!-- Les médias seront injectés ici par JS -->
-        </div>
-
-        <div id="emptyState" class="empty-state" style="display: none;">
-            <h2>Aucun média trouvé</h2>
-            <p>Essayez de modifier votre recherche ou vos filtres</p>
+    <div class="container" style="padding-top: 1.5rem;">
+        <div id="content"></div>
+        <div id="empty" class="empty" style="display:none;">
+            <div class="empty-icon">🎬</div>
+            <h2>Aucun résultat</h2>
+            <p>Essaie un autre terme de recherche</p>
         </div>
     </div>
 
     <script>
-        let allMedia = [];
-        let filteredMedia = [];
-        let currentFolder = 'all';
+        let allGroups = [];
+        let searchTerm = '';
 
-        // Récupération du token depuis le cookie
+        // ── Récupération du token ──────────────────────────────────────────────
         function getToken() {
-            const match = document.cookie.match(/magenta_token=([^;]+)/);
-            return match ? match[1] : null;
+            const m = document.cookie.match(/magenta_token=([^;]+)/);
+            return m ? m[1] : null;
         }
 
-        // Chargement des médias
-        async function loadMedia() {
+        // ── Chargement des groupes ─────────────────────────────────────────────
+        async function loadGroups() {
             const token = getToken();
-            if (!token) {
-                window.location.href = '/login';
-                return;
-            }
+            if (!token) { window.location.href = '/login'; return; }
 
             try {
-                const response = await fetch(`/api/media?token=${encodeURIComponent(token)}`);
-                
-                if (response.status === 401) {
-                    window.location.href = '/login';
-                    return;
-                }
+                const res = await fetch(`/api/folders?token=${encodeURIComponent(token)}`);
+                if (res.status === 401) { window.location.href = '/login'; return; }
 
-                const data = await response.json();
-                allMedia = data.items || [];
-                filteredMedia = allMedia;
-                
-                document.getElementById('mediaCount').textContent = `${allMedia.length} médias`;
-                
-                renderMedia();
-            } catch (error) {
-                console.error('Erreur de chargement:', error);
+                const data = await res.json();
+                allGroups = data.groups || [];
+
+                const total = data.total || 0;
+                const groupCount = allGroups.length;
+                document.getElementById('stats').textContent =
+                    `${total} médias · ${groupCount} ${groupCount > 1 ? 'groupes' : 'groupe'}`;
+
+                render();
+            } catch (e) {
+                console.error('Erreur chargement:', e);
             }
         }
 
-        // Rendu des médias
-        function renderMedia() {
-            const grid = document.getElementById('mediaGrid');
-            const emptyState = document.getElementById('emptyState');
-            
-            if (filteredMedia.length === 0) {
-                grid.style.display = 'none';
-                emptyState.style.display = 'block';
+        // ── Rendu ──────────────────────────────────────────────────────────────
+        function render() {
+            const content = document.getElementById('content');
+            const empty = document.getElementById('empty');
+            const q = searchTerm.toLowerCase();
+
+            // Filtrage
+            const filtered = allGroups.map(group => ({
+                ...group,
+                items: group.items.filter(m => m.name.toLowerCase().includes(q))
+            })).filter(group => group.items.length > 0);
+
+            if (filtered.length === 0) {
+                content.innerHTML = '';
+                empty.style.display = 'block';
                 return;
             }
 
-            grid.style.display = 'grid';
-            emptyState.style.display = 'none';
-            
-            grid.innerHTML = filteredMedia.map(media => `
-                <div class="media-card" data-id="${media.id}">
-                    <div class="media-placeholder">🎬</div>
-                    <div class="media-info">
-                        <div class="media-name" title="${media.name}">${media.name}</div>
-                        <div class="media-meta">
-                            <span>${formatSize(media.size)}</span>
-                            <span>${media.extension.toUpperCase()}</span>
+            empty.style.display = 'none';
+
+            content.innerHTML = filtered.map(group => `
+                <div class="section">
+                    <div class="section-header" onclick="toggleSection(this)">
+                        <div class="section-title">
+                            ${groupIcon(group)}
+                            ${escHtml(group.name)}
+                            <span class="section-count">${group.items.length}</span>
                         </div>
+                        <span class="section-toggle">▼</span>
+                    </div>
+                    <div class="section-grid">
+                        ${group.items.map(m => cardHTML(m)).join('')}
                     </div>
                 </div>
             `).join('');
 
-            // Ajout des écouteurs de clic
-            document.querySelectorAll('.media-card').forEach(card => {
+            // Ajout des handlers de clic sur les cards
+            content.querySelectorAll('.media-card').forEach(card => {
                 card.addEventListener('click', () => {
-                    const id = card.dataset.id;
-                    window.location.href = `/player?id=${id}`;
+                    window.location.href = `/player?id=${card.dataset.id}`;
                 });
             });
         }
 
-        // Formatage de la taille
+        // ── Card HTML ──────────────────────────────────────────────────────────
+        function cardHTML(m) {
+            return `
+                <div class="media-card" data-id="${m.id}">
+                    <div class="media-placeholder">
+                        🎬
+                        <span class="media-ext-badge">${m.extension}</span>
+                    </div>
+                    <div class="media-info">
+                        <div class="media-name" title="${escHtml(m.name)}">${escHtml(m.name)}</div>
+                        <div class="media-size">${formatSize(m.size)}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ── Icône de groupe selon le contenu ───────────────────────────────────
+        function groupIcon(group) {
+            if (group.items.length === 1) return '🎬';
+            return '📺';
+        }
+
+        // ── Toggle collapse ────────────────────────────────────────────────────
+        function toggleSection(header) {
+            const grid = header.nextElementSibling;
+            const toggle = header.querySelector('.section-toggle');
+            grid.classList.toggle('collapsed');
+            toggle.classList.toggle('collapsed');
+        }
+
+        // ── Helpers ───────────────────────────────────────────────────────────
         function formatSize(bytes) {
-            if (bytes < 1024) return bytes + ' B';
-            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (!bytes) return '';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
             if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
             return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
         }
 
-        // Filtrage
-        function applyFilters() {
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            
-            filteredMedia = allMedia.filter(media => {
-                // Filtre de recherche
-                const matchesSearch = media.name.toLowerCase().includes(searchTerm);
-                
-                // Filtre de dossier
-                let matchesFolder = true;
-                if (currentFolder === 'films') {
-                    matchesFolder = media.folder.toLowerCase().includes('film') || 
-                                   media.folder.toLowerCase().includes('movie');
-                } else if (currentFolder === 'series') {
-                    matchesFolder = media.folder.toLowerCase().includes('series') || 
-                                   media.folder.toLowerCase().includes('serie') ||
-                                   media.folder.toLowerCase().includes('show');
-                }
-                
-                return matchesSearch && matchesFolder;
-            });
-            
-            renderMedia();
+        function escHtml(s) {
+            return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
         }
 
-        // Écouteurs d'événements
-        document.getElementById('searchInput').addEventListener('input', applyFilters);
-
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                currentFolder = btn.dataset.folder;
-                applyFilters();
-            });
+        // ── Recherche avec debounce ─────────────────────────────────────────────
+        let debounceTimer;
+        document.getElementById('searchInput').addEventListener('input', e => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                searchTerm = e.target.value;
+                render();
+            }, 200);
         });
 
-        // Chargement initial
-        loadMedia();
+        // ── Init ───────────────────────────────────────────────────────────────
+        loadGroups();
     </script>
 </body>
 </html>

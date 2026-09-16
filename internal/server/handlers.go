@@ -7,6 +7,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path/filepath"
+	"sort"
+	"strings"
+
+	"github.com/AaronDAmin/magenta/internal/media"
 )
 
 // handleHealth est la route de santé du serveur.
@@ -45,38 +50,80 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleMediaList retourne la liste complète des fichiers multimédias indexés.
-//
-// Exemple de réponse :
-//
-//	{
-//	  "total": 42,
-//	  "items": [
-//	    {
-//	      "id": "a3f5e8d2...",
-//	      "name": "Film.2024.1080p.mkv",
-//	      "size": 2147483648,
-//	      "extension": "mkv",
-//	      "modified_at": "2026-09-15T18:30:00Z"
-//	    },
-//	    ...
-//	  ]
-//	}
 func (s *Server) handleMediaList(w http.ResponseWriter, r *http.Request) {
-	// Récupération de tous les médias depuis l'index
 	allMedia := s.index.All()
-
-	// Construction de la réponse JSON
 	response := map[string]interface{}{
 		"total": len(allMedia),
 		"items": allMedia,
 	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		s.log.Error("erreur encodage /api/media", "erreur", err.Error())
+	}
+}
+
+// handleFolders retourne les médias groupés par dossier.
+// Chaque groupe représente soit un film isolé, soit une série avec ses épisodes.
+//
+// Réponse :
+//
+//	{
+//	  "groups": [
+//	    {
+//	      "name": "THAT TIME I GOT REINCARNATED",
+//	      "folder": "D:/Series/THAT TIME...",
+//	      "count": 12,
+//	      "items": [...]
+//	    },
+//	    ...
+//	  ]
+//	}
+func (s *Server) handleFolders(w http.ResponseWriter, r *http.Request) {
+	allMedia := s.index.All()
+
+	// Regroupement par dossier
+	folderMap := make(map[string][]*media.Media)
+	for _, m := range allMedia {
+		folderMap[m.Folder] = append(folderMap[m.Folder], m)
+	}
+
+	// Construction des groupes triés par nom
+	type Group struct {
+		Name   string        `json:"name"`
+		Folder string        `json:"folder"`
+		Count  int           `json:"count"`
+		Items  []*media.Media `json:"items"`
+	}
+
+	groups := make([]Group, 0, len(folderMap))
+	for folder, items := range folderMap {
+		// Tri des épisodes par nom dans chaque groupe
+		sortByName(items)
+
+		// Nom du groupe = dernier segment du chemin (nom du dossier)
+		name := folderName(folder)
+
+		groups = append(groups, Group{
+			Name:   name,
+			Folder: folder,
+			Count:  len(items),
+			Items:  items,
+		})
+	}
+
+	// Tri des groupes par nom
+	sort.Slice(groups, func(i, j int) bool {
+		return strings.ToLower(groups[i].Name) < strings.ToLower(groups[j].Name)
+	})
+
+	response := map[string]interface{}{
+		"total":  len(allMedia),
+		"groups": groups,
+	}
 
 	w.Header().Set("Content-Type", "application/json")
-
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		s.log.Error("erreur lors de l'encodage JSON de /api/media",
-			"erreur", err.Error(),
-		)
+		s.log.Error("erreur encodage /api/folders", "erreur", err.Error())
 	}
 }
 
@@ -180,3 +227,20 @@ func (s *Server) handlePlaylist(w http.ResponseWriter, r *http.Request) {
 	)
 }
 
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+// folderName retourne le dernier segment d'un chemin (nom du dossier).
+func folderName(path string) string {
+	name := filepath.Base(filepath.Clean(path))
+	// Nettoyage : suppression des underscores, mise en forme lisible
+	name = strings.ReplaceAll(name, "_", " ")
+	return name
+}
+
+// sortByName trie une liste de médias par nom alphabétique.
+func sortByName(items []*media.Media) {
+	sort.Slice(items, func(i, j int) bool {
+		return strings.ToLower(items[i].Name) < strings.ToLower(items[j].Name)
+	})
+}
