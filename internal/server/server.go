@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/AaronDAmin/magenta/internal/auth"
 	"github.com/AaronDAmin/magenta/internal/config"
 	"github.com/AaronDAmin/magenta/internal/media"
 	"github.com/AaronDAmin/magenta/internal/stream"
@@ -16,17 +17,19 @@ import (
 
 // Server encapsule le serveur HTTP et ses dépendances.
 type Server struct {
-	http          *http.Server     // serveur HTTP standard de la bibliothèque Go
+	http          *http.Server       // serveur HTTP standard de la bibliothèque Go
 	cfg           *config.Config
 	log           *slog.Logger
-	router        *http.ServeMux   // routeur interne
-	index         *media.Index     // index des médias
-	streamHandler *stream.Handler  // handler de streaming
+	router        *http.ServeMux     // routeur interne
+	index         *media.Index       // index des médias
+	streamHandler *stream.Handler    // handler de streaming
+	authStore     *auth.Store        // store des appareils autorisés
+	adminHandler  *auth.AdminHandler // handler admin
 }
 
 // New crée et configure un nouveau Server prêt à démarrer.
 // Il enregistre toutes les routes et les middlewares au moment de la construction.
-func New(cfg *config.Config, log *slog.Logger, index *media.Index) *Server {
+func New(cfg *config.Config, log *slog.Logger, index *media.Index, authStore *auth.Store) *Server {
 	mux := http.NewServeMux()
 
 	s := &Server{
@@ -35,6 +38,8 @@ func New(cfg *config.Config, log *slog.Logger, index *media.Index) *Server {
 		router:        mux,
 		index:         index,
 		streamHandler: stream.NewHandler(log, index),
+		authStore:     authStore,
+		adminHandler:  auth.NewAdminHandler(authStore, log),
 	}
 
 	// Enregistrement des routes — chaque groupe de routes est isolé
@@ -48,9 +53,10 @@ func New(cfg *config.Config, log *slog.Logger, index *media.Index) *Server {
 
 	s.http = &http.Server{
 		Addr: addr,
-		// Le routeur est enveloppé dans le middleware de logging
-		// pour tracer automatiquement toutes les requêtes entrantes.
-		Handler: s.loggingMiddleware(mux),
+		// Le routeur est enveloppé dans les middlewares :
+		// 1. Authentification (vérifie le token)
+		// 2. Logging (trace toutes les requêtes)
+		Handler: auth.Middleware(s.authStore, s.log)(s.loggingMiddleware(mux)),
 
 		// ReadTimeout : durée maximale pour lire l'intégralité de la requête.
 		// Protège contre les clients lents qui gardent la connexion ouverte.
@@ -118,8 +124,8 @@ func (s *Server) registerRoutes() {
 	// Supporte les range requests pour le scrubbing vidéo dans VLC
 	s.router.HandleFunc("GET /stream/{id}", s.streamHandler.ServeStream)
 
-	// TODO (Étape 5) : routes d'administration des appareils
-	// s.router.HandleFunc("GET /admin/devices", s.handleDeviceList)
-	// s.router.HandleFunc("POST /admin/devices", s.handleDeviceAdd)
-	// s.router.HandleFunc("DELETE /admin/devices/{id}", s.handleDeviceRevoke)
+	// Routes d'administration des appareils (accessibles uniquement depuis localhost)
+	s.router.HandleFunc("GET /admin/devices", s.adminHandler.HandleList)
+	s.router.HandleFunc("POST /admin/devices", s.adminHandler.HandleAdd)
+	s.router.HandleFunc("DELETE /admin/devices/{id}", s.adminHandler.HandleRevoke)
 }

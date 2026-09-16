@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/AaronDAmin/magenta/internal/auth"
 	"github.com/AaronDAmin/magenta/internal/config"
 	"github.com/AaronDAmin/magenta/internal/logger"
 	"github.com/AaronDAmin/magenta/internal/media"
@@ -55,6 +56,14 @@ func main() {
 	)
 	log.Debug("configuration chargée", slog.String("config", cfg.String()))
 
+	// --- Initialisation du store d'authentification ---
+	authStore, err := auth.NewStore("devices.json", log)
+	if err != nil {
+		log.Error("impossible de charger le store d'authentification", slog.String("erreur", err.Error()))
+		os.Exit(1)
+	}
+	log.Info("store d'authentification initialisé", slog.Int("appareils", authStore.Count()))
+
 	// --- Initialisation de l'index et du scanner ---
 	index := media.NewIndex()
 	scanner := media.NewScanner(cfg, log, index)
@@ -85,7 +94,7 @@ func main() {
 	defer stop()
 
 	// --- Initialisation et démarrage du serveur HTTP ---
-	srv := server.New(cfg, log, index)
+	srv := server.New(cfg, log, index, authStore)
 	srv.Start()
 
 	// Attente du signal d'arrêt
