@@ -1,0 +1,36 @@
+# Binaires compilés
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Fichiers de test Go
+*.test
+*.out
+
+# Dépendances téléchargées (Go les gère via go.sum, pas besoin de les versionner)
+vendor/
+
+# Fichier des appareils autorisés — contient des tokens privés, NE PAS committer
+devices.json
+
+# Certificats TLS générés localement
+*.pem
+*.crt
+*.key
+
+# Fichiers d'environnement locaux
+.env
+.env.local
+
+# Dossiers d'éditeurs et IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Fichiers système
+.DS_Store
+Thumbs.db
