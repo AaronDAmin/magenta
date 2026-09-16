@@ -359,50 +359,24 @@
         }
 
         // ── Ouverture VLC selon la plateforme ──────────────────────────────────
-        // Détecte automatiquement l'appareil et utilise la meilleure méthode :
-        // - PC (Windows/Mac/Linux) → protocole vlc:// (pas de téléchargement)
-        // - Android                → intent:// VLC direct (pas de téléchargement)
-        // - iOS                    → téléchargement .m3u (seule option sur iOS)
         function openVLC(mediaId, token) {
             const host = location.host;
             const ua = navigator.userAgent;
-
-            // URL de stream complète
-            const streamURL = `http://${host}/stream/${mediaId}?token=${encodeURIComponent(token)}`;
+            const encodedToken = encodeURIComponent(token);
 
             if (/Android/i.test(ua)) {
-                // Android : ouvre directement VLC via intent Android
-                // Nécessite VLC installé (org.videolan.vlc)
-                const intentURL = `intent://${host}/stream/${mediaId}?token=${encodeURIComponent(token)}#Intent;package=org.videolan.vlc;scheme=http;end`;
-                window.location = intentURL;
+                // Android : intent direct vers VLC
+                window.location = `intent://${host}/stream/${mediaId}?token=${encodedToken}#Intent;package=org.videolan.vlc;scheme=http;end`;
 
             } else if (/iPhone|iPad|iPod/i.test(ua)) {
-                // iOS : pas de protocole custom fiable → téléchargement .m3u
-                // VLC iOS ouvre les .m3u automatiquement
-                window.location = `/stream/${mediaId}/vlc?token=${encodeURIComponent(token)}`;
+                // iOS : .m3u (seule option fiable)
+                window.location = `/stream/${mediaId}/vlc?token=${encodedToken}`;
 
             } else {
-                // PC (Windows, Mac, Linux) : protocole vlc://
-                // VLC doit être installé et enregistré comme handler vlc://
-                // Si ça ne fonctionne pas (VLC non installé), on fallback sur le .m3u
-                const vlcURI = `vlc://${streamURL}`;
-
-                // Tentative d'ouverture via vlc://
-                // On utilise un iframe caché pour éviter de naviguer si le protocole échoue
-                const iframe = document.createElement('iframe');
-                iframe.style.display = 'none';
-                document.body.appendChild(iframe);
-                iframe.src = vlcURI;
-
-                // Fallback après 1.5s : si VLC ne s'est pas ouvert, télécharge le .m3u
-                setTimeout(() => {
-                    document.body.removeChild(iframe);
-                    // On vérifie si la page est toujours visible (si VLC n'a pas pris le focus)
-                    if (!document.hidden) {
-                        // VLC ne s'est probablement pas ouvert, fallback .m3u
-                        window.location = `/stream/${mediaId}/vlc?token=${encodeURIComponent(token)}`;
-                    }
-                }, 1500);
+                // PC : protocole vlc://
+                // vlc:// doit être enregistré dans le registre Windows
+                // Si pas enregistré, le navigateur télécharge le .m3u en fallback
+                window.location = `vlc://http://${host}/stream/${mediaId}?token=${encodedToken}`;
             }
         }
 
