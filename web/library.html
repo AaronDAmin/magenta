@@ -359,24 +359,22 @@
         }
 
         // ── Ouverture VLC selon la plateforme ──────────────────────────────────
+        // Chrome/Edge bloquent les protocoles custom (vlc://) depuis 2021.
+        // La solution universelle et fiable : fichier .m3u que Windows/Android
+        // ouvre automatiquement dans VLC (association de fichier).
         function openVLC(mediaId, token) {
-            const host = location.host;
             const ua = navigator.userAgent;
             const encodedToken = encodeURIComponent(token);
 
             if (/Android/i.test(ua)) {
-                // Android : intent direct vers VLC
+                // Android : intent direct vers VLC (pas de téléchargement)
+                const host = location.host;
                 window.location = `intent://${host}/stream/${mediaId}?token=${encodedToken}#Intent;package=org.videolan.vlc;scheme=http;end`;
-
-            } else if (/iPhone|iPad|iPod/i.test(ua)) {
-                // iOS : .m3u (seule option fiable)
-                window.location = `/stream/${mediaId}/vlc?token=${encodedToken}`;
-
             } else {
-                // PC : protocole vlc://
-                // vlc:// doit être enregistré dans le registre Windows
-                // Si pas enregistré, le navigateur télécharge le .m3u en fallback
-                window.location = `vlc://http://${host}/stream/${mediaId}?token=${encodedToken}`;
+                // PC et iOS : téléchargement .m3u
+                // Windows associe automatiquement .m3u à VLC → VLC s'ouvre directement
+                // iOS : VLC iOS ouvre les .m3u automatiquement
+                window.location = `/stream/${mediaId}/vlc?token=${encodedToken}`;
             }
         }
 
