@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magenta - Connexion</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="login-wrapper">
+        <div class="login-box">
+            <h1>🎬 Magenta</h1>
+            <p style="text-align: center; color: var(--text-secondary); margin-bottom: 2rem;">
+                Entrez votre token d'accès pour continuer
+            </p>
+            
+            <div id="error" class="error" style="display: none;"></div>
+            
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="token">Token d'authentification</label>
+                    <input 
+                        type="text" 
+                        id="token" 
+                        name="token" 
+                        placeholder="Collez votre token ici"
+                        required 
+                        autocomplete="off"
+                    >
+                </div>
+                
+                <button type="submit">Se connecter</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('loginForm');
+        const errorDiv = document.getElementById('error');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const token = document.getElementById('token').value.trim();
+            
+            if (!token) {
+                showError('Veuillez entrer un token');
+                return;
+            }
+
+            // Test du token en appelant l'API
+            try {
+                const response = await fetch(`/api/media?token=${encodeURIComponent(token)}`);
+                
+                if (response.ok) {
+                    // Token valide, on stocke dans un cookie et redirige
+                    document.cookie = `magenta_token=${token}; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=Strict`;
+                    window.location.href = '/';
+                } else if (response.status === 401) {
+                    showError('Token invalide ou expiré');
+                } else {
+                    showError('Erreur de connexion au serveur');
+                }
+            } catch (error) {
+                showError('Impossible de se connecter au serveur');
+            }
+        });
+
+        function showError(message) {
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magenta - Bibliothèque</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <a href="/" class="logo">🎬 Magenta</a>
+            <div style="color: var(--text-secondary);" id="mediaCount">Chargement...</div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="controls">
+            <div class="search-box">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="🔍 Rechercher un film ou une série..."
+                >
+            </div>
+            <div class="filter-group">
+                <button class="filter-btn active" data-folder="all">Tous</button>
+                <button class="filter-btn" data-folder="films">Films</button>
+                <button class="filter-btn" data-folder="series">Séries</button>
+            </div>
+        </div>
+
+        <div id="mediaGrid" class="media-grid">
+            <!-- Les médias seront injectés ici par JS -->
+        </div>
+
+        <div id="emptyState" class="empty-state" style="display: none;">
+            <h2>Aucun média trouvé</h2>
+            <p>Essayez de modifier votre recherche ou vos filtres</p>
+        </div>
+    </div>
+
+    <script>
+        let allMedia = [];
+        let filteredMedia = [];
+        let currentFolder = 'all';
+
+        // Récupération du token depuis le cookie
+        function getToken() {
+            const match = document.cookie.match(/magenta_token=([^;]+)/);
+            return match ? match[1] : null;
+        }
+
+        // Chargement des médias
+        async function loadMedia() {
+            const token = getToken();
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/media?token=${encodeURIComponent(token)}`);
+                
+                if (response.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                const data = await response.json();
+                allMedia = data.items || [];
+                filteredMedia = allMedia;
+                
+                document.getElementById('mediaCount').textContent = `${allMedia.length} médias`;
+                
+                renderMedia();
+            } catch (error) {
+                console.error('Erreur de chargement:', error);
+            }
+        }
+
+        // Rendu des médias
+        function renderMedia() {
+            const grid = document.getElementById('mediaGrid');
+            const emptyState = document.getElementById('emptyState');
+            
+            if (filteredMedia.length === 0) {
+                grid.style.display = 'none';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            grid.style.display = 'grid';
+            emptyState.style.display = 'none';
+            
+            grid.innerHTML = filteredMedia.map(media => `
+                <div class="media-card" data-id="${media.id}">
+                    <div class="media-placeholder">🎬</div>
+                    <div class="media-info">
+                        <div class="media-name" title="${media.name}">${media.name}</div>
+                        <div class="media-meta">
+                            <span>${formatSize(media.size)}</span>
+                            <span>${media.extension.toUpperCase()}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            // Ajout des écouteurs de clic
+            document.querySelectorAll('.media-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const id = card.dataset.id;
+                    window.location.href = `/player?id=${id}`;
+                });
+            });
+        }
+
+        // Formatage de la taille
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+        }
+
+        // Filtrage
+        function applyFilters() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            filteredMedia = allMedia.filter(media => {
+                // Filtre de recherche
+                const matchesSearch = media.name.toLowerCase().includes(searchTerm);
+                
+                // Filtre de dossier
+                let matchesFolder = true;
+                if (currentFolder === 'films') {
+                    matchesFolder = media.folder.toLowerCase().includes('film') || 
+                                   media.folder.toLowerCase().includes('movie');
+                } else if (currentFolder === 'series') {
+                    matchesFolder = media.folder.toLowerCase().includes('series') || 
+                                   media.folder.toLowerCase().includes('serie') ||
+                                   media.folder.toLowerCase().includes('show');
+                }
+                
+                return matchesSearch && matchesFolder;
+            });
+            
+            renderMedia();
+        }
+
+        // Écouteurs d'événements
+        document.getElementById('searchInput').addEventListener('input', applyFilters);
+
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentFolder = btn.dataset.folder;
+                applyFilters();
+            });
+        });
+
+        // Chargement initial
+        loadMedia();
+    </script>
+</body>
+</html>

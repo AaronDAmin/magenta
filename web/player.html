@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magenta - Lecteur</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <div class="container">
+            <a href="/" class="logo">🎬 Magenta</a>
+            <div style="color: var(--text-secondary);" id="mediaTitle">Chargement...</div>
+        </div>
+    </header>
+
+    <div class="container player-wrapper">
+        <video id="videoPlayer" controls autoplay>
+            Votre navigateur ne supporte pas la lecture vidéo.
+        </video>
+
+        <div class="player-controls">
+            <button class="btn-secondary" onclick="window.location.href='/'">
+                ← Retour à la bibliothèque
+            </button>
+            <button class="btn-secondary" id="nextBtn" style="display: none;">
+                Épisode suivant →
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const mediaId = urlParams.get('id');
+        const video = document.getElementById('videoPlayer');
+        const nextBtn = document.getElementById('nextBtn');
+
+        // Récupération du token depuis le cookie
+        function getToken() {
+            const match = document.cookie.match(/magenta_token=([^;]+)/);
+            return match ? match[1] : null;
+        }
+
+        // Chargement du média
+        async function loadMedia() {
+            const token = getToken();
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+
+            if (!mediaId) {
+                window.location.href = '/';
+                return;
+            }
+
+            try {
+                // Récupération des infos du média
+                const response = await fetch(`/api/media?token=${encodeURIComponent(token)}`);
+                const data = await response.json();
+                const media = data.items.find(m => m.id === mediaId);
+                
+                if (!media) {
+                    alert('Média introuvable');
+                    window.location.href = '/';
+                    return;
+                }
+
+                document.getElementById('mediaTitle').textContent = media.name;
+                document.title = `${media.name} - Magenta`;
+
+                // Configuration de la source vidéo
+                video.src = `/stream/${mediaId}?token=${encodeURIComponent(token)}`;
+
+                // Vérification si un épisode suivant existe
+                checkNextEpisode(mediaId, token);
+
+            } catch (error) {
+                console.error('Erreur:', error);
+                alert('Erreur de chargement du média');
+                window.location.href = '/';
+            }
+        }
+
+        // Vérification de l'existence d'un épisode suivant
+        async function checkNextEpisode(id, token) {
+            try {
+                const response = await fetch(`/api/media/${id}/next?token=${encodeURIComponent(token)}`);
+                
+                if (response.ok) {
+                    const nextMedia = await response.json();
+                    nextBtn.style.display = 'block';
+                    nextBtn.onclick = () => {
+                        window.location.href = `/player?id=${nextMedia.id}`;
+                    };
+
+                    // Auto-play du suivant à la fin de la vidéo
+                    video.addEventListener('ended', () => {
+                        setTimeout(() => {
+                            window.location.href = `/player?id=${nextMedia.id}`;
+                        }, 2000);
+                    });
+                }
+            } catch (error) {
+                // Pas d'épisode suivant, pas grave
+            }
+        }
+
+        // Raccourcis clavier
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (video.paused) {
+                    video.play();
+                } else {
+                    video.pause();
+                }
+            } else if (e.code === 'ArrowLeft') {
+                video.currentTime = Math.max(0, video.currentTime - 10);
+            } else if (e.code === 'ArrowRight') {
+                video.currentTime = Math.min(video.duration, video.currentTime + 10);
+            } else if (e.code === 'KeyF') {
+                if (document.fullscreenElement) {
+                    document.exitFullscreen();
+                } else {
+                    video.requestFullscreen();
+                }
+            } else if (e.code === 'KeyM') {
+                video.muted = !video.muted;
+            }
+        });
+
+        // Chargement initial
+        loadMedia();
+    </script>
+</body>
+</html>

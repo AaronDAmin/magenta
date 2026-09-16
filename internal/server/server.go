@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -25,11 +26,12 @@ type Server struct {
 	streamHandler *stream.Handler    // handler de streaming
 	authStore     *auth.Store        // store des appareils autorisés
 	adminHandler  *auth.AdminHandler // handler admin
+	webFS         embed.FS           // système de fichiers web embarqué
 }
 
 // New crée et configure un nouveau Server prêt à démarrer.
 // Il enregistre toutes les routes et les middlewares au moment de la construction.
-func New(cfg *config.Config, log *slog.Logger, index *media.Index, authStore *auth.Store) *Server {
+func New(cfg *config.Config, log *slog.Logger, index *media.Index, authStore *auth.Store, webFS embed.FS) *Server {
 	mux := http.NewServeMux()
 
 	s := &Server{
@@ -40,6 +42,7 @@ func New(cfg *config.Config, log *slog.Logger, index *media.Index, authStore *au
 		streamHandler: stream.NewHandler(log, index),
 		authStore:     authStore,
 		adminHandler:  auth.NewAdminHandler(authStore, log),
+		webFS:         webFS,
 	}
 
 	// Enregistrement des routes — chaque groupe de routes est isolé
@@ -53,10 +56,9 @@ func New(cfg *config.Config, log *slog.Logger, index *media.Index, authStore *au
 
 	s.http = &http.Server{
 		Addr: addr,
-		// Le routeur est enveloppé dans les middlewares :
-		// 1. Authentification (vérifie le token)
-		// 2. Logging (trace toutes les requêtes)
-		Handler: auth.Middleware(s.authStore, s.log)(s.loggingMiddleware(mux)),
+		// Le routeur est enveloppé uniquement dans le middleware de logging
+		// L'authentification est gérée au niveau de chaque route/handler
+		Handler: s.loggingMiddleware(mux),
 
 		// ReadTimeout : durée maximale pour lire l'intégralité de la requête.
 		// Protège contre les clients lents qui gardent la connexion ouverte.
@@ -107,25 +109,21 @@ func (s *Server) Shutdown(ctx context.Context) error {
 // registerRoutes enregistre toutes les routes HTTP du serveur.
 // Cette méthode est le point central de définition de l'API.
 func (s *Server) registerRoutes() {
-	// Route de santé — permet de vérifier que le serveur répond correctement.
-	// Accessible depuis un navigateur ou avec : curl http://<ip>:8080/health
+	// Route de santé — pas d'authentification
 	s.router.HandleFunc("GET /health", s.handleHealth)
 
-	// Route de l'index des médias — retourne la liste complète des fichiers indexés
-	s.router.HandleFunc("GET /api/media", s.handleMediaList)
+	// Routes API — protégées par authentification
+	authMiddleware := auth.Middleware(s.authStore, s.log)
+	s.router.Handle("GET /api/media", authMiddleware(http.HandlerFunc(s.handleMediaList)))
+	s.router.Handle("GET /api/media/{id}/next", authMiddleware(http.HandlerFunc(s.handleMediaNext)))
+	s.router.Handle("GET /api/playlist", authMiddleware(http.HandlerFunc(s.handlePlaylist)))
+	s.router.Handle("GET /stream/{id}", authMiddleware(http.HandlerFunc(s.streamHandler.ServeStream)))
 
-	// Route pour récupérer l'épisode suivant dans le même dossier
-	s.router.HandleFunc("GET /api/media/{id}/next", s.handleMediaNext)
+	// Routes d'administration (accessibles uniquement depuis localhost, gérées par le middleware)
+	s.router.Handle("GET /admin/devices", authMiddleware(http.HandlerFunc(s.adminHandler.HandleList)))
+	s.router.Handle("POST /admin/devices", authMiddleware(http.HandlerFunc(s.adminHandler.HandleAdd)))
+	s.router.Handle("DELETE /admin/devices/{id}", authMiddleware(http.HandlerFunc(s.adminHandler.HandleRevoke)))
 
-	// Route pour générer une playlist M3U d'un dossier
-	s.router.HandleFunc("GET /api/playlist", s.handlePlaylist)
-
-	// Route de streaming — diffuse un fichier multimédia par son ID
-	// Supporte les range requests pour le scrubbing vidéo dans VLC
-	s.router.HandleFunc("GET /stream/{id}", s.streamHandler.ServeStream)
-
-	// Routes d'administration des appareils (accessibles uniquement depuis localhost)
-	s.router.HandleFunc("GET /admin/devices", s.adminHandler.HandleList)
-	s.router.HandleFunc("POST /admin/devices", s.adminHandler.HandleAdd)
-	s.router.HandleFunc("DELETE /admin/devices/{id}", s.adminHandler.HandleRevoke)
+	// Interface web — gère sa propre authentification via cookies
+	s.router.Handle("/", s.serveWeb(s.webFS))
 }

@@ -15,7 +15,9 @@ func Middleware(store *Store, log *slog.Logger) func(http.Handler) http.Handler 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Routes publiques (pas d'authentification requise)
-			if r.URL.Path == "/health" {
+			if r.URL.Path == "/health" || 
+			   r.URL.Path == "/login" || 
+			   strings.HasPrefix(r.URL.Path, "/static/") {
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -69,16 +71,23 @@ func Middleware(store *Store, log *slog.Logger) func(http.Handler) http.Handler 
 }
 
 // extractToken extrait le token depuis les sources suivantes (par ordre de priorité) :
-// 1. Query parameter : ?token=xyz
-// 2. Header Authorization : Bearer xyz
+// 1. Cookie : magenta_token (pour l'interface web)
+// 2. Query parameter : ?token=xyz (pour VLC et les URLs directes)
+// 3. Header Authorization : Bearer xyz (pour les clients API)
 func extractToken(r *http.Request) string {
-	// 1. Query parameter (prioritaire pour VLC)
+	// 1. Cookie (prioritaire pour l'interface web)
+	cookie, err := r.Cookie("magenta_token")
+	if err == nil && cookie.Value != "" {
+		return cookie.Value
+	}
+
+	// 2. Query parameter (pour VLC)
 	token := r.URL.Query().Get("token")
 	if token != "" {
 		return token
 	}
 
-	// 2. Header Authorization (format : "Bearer <token>")
+	// 3. Header Authorization (format : "Bearer <token>")
 	authHeader := r.Header.Get("Authorization")
 	if authHeader != "" {
 		parts := strings.SplitN(authHeader, " ", 2)

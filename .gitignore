@@ -24,6 +24,9 @@ devices.json
 # Playlists M3U générées
 *.m3u
 
+# Dossier web copié pour le build (source dans /web)
+cmd/mediaserver/web/
+
 # Fichiers d'environnement locaux
 .env
 .env.local

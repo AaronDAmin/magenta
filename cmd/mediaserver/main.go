@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -19,6 +20,9 @@ import (
 	"github.com/AaronDAmin/magenta/internal/media"
 	"github.com/AaronDAmin/magenta/internal/server"
 )
+
+//go:embed all:web
+var webFS embed.FS
 
 // version est injectée au moment du build via -ldflags.
 // Exemple : go build -ldflags "-X main.version=1.0.0"
@@ -94,7 +98,7 @@ func main() {
 	defer stop()
 
 	// --- Initialisation et démarrage du serveur HTTP ---
-	srv := server.New(cfg, log, index, authStore)
+	srv := server.New(cfg, log, index, authStore, webFS)
 	srv.Start()
 
 	// Attente du signal d'arrêt

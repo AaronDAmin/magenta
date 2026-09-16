@@ -1,0 +1,332 @@
+/* ============================================================
+   Magenta - Style global
+   Dark theme minimaliste inspiré Netflix/Plex
+   ============================================================ */
+
+:root {
+  --bg-primary: #0d0d0d;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #2a2a2a;
+  --text-primary: #ffffff;
+  --text-secondary: #b3b3b3;
+  --accent: #e50914;
+  --accent-hover: #f40612;
+  --border: #333333;
+  --success: #46d369;
+  --radius: 8px;
+  --shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+/* ============================================================
+   Layout général
+   ============================================================ */
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+header {
+  background: var(--bg-secondary);
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2rem;
+}
+
+header .container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 2rem;
+}
+
+.logo {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+/* ============================================================
+   Formulaire de login
+   ============================================================ */
+
+.login-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-box {
+  background: var(--bg-secondary);
+  padding: 3rem;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 450px;
+}
+
+.login-box h1 {
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+input[type="text"],
+input[type="password"] {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+button {
+  width: 100%;
+  padding: 0.75rem 1.5rem;
+  background: var(--accent);
+  color: var(--text-primary);
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+button:hover {
+  background: var(--accent-hover);
+}
+
+.error {
+  background: rgba(229, 9, 20, 0.1);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+/* ============================================================
+   Barre de recherche et filtres
+   ============================================================ */
+
+.controls {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.search-box {
+  flex: 1;
+  min-width: 250px;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.filter-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.filter-btn {
+  padding: 0.75rem 1.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  width: auto;
+}
+
+.filter-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.filter-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+/* ============================================================
+   Grille de médias
+   ============================================================ */
+
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+.media-card {
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: 1px solid var(--border);
+}
+
+.media-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow);
+  border-color: var(--accent);
+}
+
+.media-placeholder {
+  width: 100%;
+  height: 150px;
+  background: linear-gradient(135deg, var(--bg-tertiary), var(--bg-secondary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  color: var(--text-secondary);
+}
+
+.media-info {
+  padding: 1rem;
+}
+
+.media-name {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.media-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+/* ============================================================
+   Lecteur vidéo
+   ============================================================ */
+
+.player-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+video {
+  width: 100%;
+  border-radius: var(--radius);
+  background: #000;
+}
+
+.player-controls {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  justify-content: center;
+}
+
+.btn-secondary {
+  padding: 0.75rem 1.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s;
+  width: auto;
+}
+
+.btn-secondary:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent);
+}
+
+/* ============================================================
+   États vides
+   ============================================================ */
+
+.empty-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--text-secondary);
+}
+
+.empty-state h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .container {
+    padding: 1rem;
+  }
+
+  .media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 1rem;
+  }
+
+  .controls {
+    flex-direction: column;
+  }
+
+  .filter-group {
+    width: 100%;
+  }
+
+  .filter-btn {
+    flex: 1;
+  }
+}
