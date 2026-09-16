@@ -15,17 +15,11 @@ import (
 
 // Config représente la configuration complète du serveur.
 type Config struct {
-	// Server regroupe les paramètres réseau du serveur HTTP.
 	Server ServerConfig `yaml:"server"`
-
-	// Media regroupe les paramètres liés aux fichiers multimédias.
-	Media MediaConfig `yaml:"media"`
-
-	// Log regroupe les paramètres de logging.
-	Log LogConfig `yaml:"log"`
-
-	// MDNS regroupe les paramètres de découverte réseau.
-	MDNS MDNSConfig `yaml:"mdns"`
+	Media  MediaConfig  `yaml:"media"`
+	Log    LogConfig    `yaml:"log"`
+	MDNS   MDNSConfig   `yaml:"mdns"`
+	TLS    TLSConfig    `yaml:"tls"`
 }
 
 // ServerConfig contient les paramètres réseau du serveur.
@@ -76,6 +70,22 @@ type MDNSConfig struct {
 
 	// Name est le nom de l'instance sur le réseau (ex: "magenta" → "magenta.local").
 	Name string `yaml:"name"`
+}
+
+// TLSConfig contient les paramètres TLS pour HTTPS.
+type TLSConfig struct {
+	// Enabled active ou désactive HTTPS.
+	Enabled bool `yaml:"enabled"`
+
+	// CertFile est le chemin du fichier certificat PEM.
+	// Si vide et Enabled=true, un certificat auto-signé est généré automatiquement.
+	CertFile string `yaml:"cert_file"`
+
+	// KeyFile est le chemin du fichier clé privée PEM.
+	KeyFile string `yaml:"key_file"`
+
+	// Port HTTPS (par défaut 8443 pour éviter le port privilégié 443).
+	Port int `yaml:"port"`
 }
 
 // Load lit et parse le fichier de configuration YAML au chemin indiqué.

@@ -20,6 +20,7 @@ import (
 	"github.com/AaronDAmin/magenta/internal/mdns"
 	"github.com/AaronDAmin/magenta/internal/media"
 	"github.com/AaronDAmin/magenta/internal/server"
+	internaltls "github.com/AaronDAmin/magenta/internal/tls"
 )
 
 //go:embed all:web
@@ -116,6 +117,29 @@ func main() {
 
 	// --- Initialisation et démarrage du serveur HTTP ---
 	srv := server.New(cfg, log, index, authStore, webFS)
+
+	// --- Configuration TLS (HTTPS) si activée ---
+	if cfg.TLS.Enabled {
+		certCfg := internaltls.CertConfig{
+			CertFile: cfg.TLS.CertFile,
+			KeyFile:  cfg.TLS.KeyFile,
+		}
+		// Hosts couverts par le certificat (IP locale + magenta.local)
+		hosts := []string{"magenta.local", cfg.Server.Host}
+
+		tlsConfig, err := internaltls.LoadOrGenerate(certCfg, log, hosts)
+		if err != nil {
+			log.Error("impossible d'initialiser TLS", slog.String("erreur", err.Error()))
+			os.Exit(1)
+		}
+
+		srv.EnableTLS(tlsConfig, cfg.TLS.Port)
+		log.Info("HTTPS activé",
+			slog.Int("port", cfg.TLS.Port),
+			slog.String("url", fmt.Sprintf("https://magenta.local:%d", cfg.TLS.Port)),
+		)
+	}
+
 	srv.Start()
 
 	// Attente du signal d'arrêt

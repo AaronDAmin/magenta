@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	cryptotls "crypto/tls"
 	"embed"
 	"fmt"
 	"log/slog"
@@ -18,15 +19,16 @@ import (
 
 // Server encapsule le serveur HTTP et ses dépendances.
 type Server struct {
-	http          *http.Server       // serveur HTTP standard de la bibliothèque Go
+	http          *http.Server
+	https         *http.Server       // serveur HTTPS (nil si TLS désactivé)
 	cfg           *config.Config
 	log           *slog.Logger
-	router        *http.ServeMux     // routeur interne
-	index         *media.Index       // index des médias
-	streamHandler *stream.Handler    // handler de streaming
-	authStore     *auth.Store        // store des appareils autorisés
-	adminHandler  *auth.AdminHandler // handler admin
-	webFS         embed.FS           // système de fichiers web embarqué
+	router        *http.ServeMux
+	index         *media.Index
+	streamHandler *stream.Handler
+	authStore     *auth.Store
+	adminHandler  *auth.AdminHandler
+	webFS         embed.FS
 }
 
 // New crée et configure un nouveau Server prêt à démarrer.
@@ -75,31 +77,59 @@ func New(cfg *config.Config, log *slog.Logger, index *media.Index, authStore *au
 	return s
 }
 
-// Start démarre le serveur HTTP en arrière-plan dans une goroutine.
-// Il retourne immédiatement pour ne pas bloquer l'appelant.
-// Utiliser Shutdown() pour arrêter proprement le serveur.
+// EnableTLS configure le serveur HTTPS avec le tlsConfig fourni.
+// Doit être appelé avant Start().
+func (s *Server) EnableTLS(tlsConfig *cryptotls.Config, port int) {
+	addr := fmt.Sprintf("%s:%d", s.cfg.Server.Host, port)
+	s.https = &http.Server{
+		Addr:      addr,
+		Handler:   s.loggingMiddleware(s.router),
+		TLSConfig: tlsConfig,
+		// Pas de WriteTimeout pour le streaming
+		ReadTimeout: time.Duration(s.cfg.Server.ReadTimeoutSec) * time.Second,
+		ErrorLog:    slog.NewLogLogger(s.log.Handler(), slog.LevelError),
+	}
+}
+
+// Start démarre le serveur HTTP (et HTTPS si configuré) en arrière-plan.
 func (s *Server) Start() {
 	s.log.Info("serveur démarré",
 		slog.String("adresse", s.http.Addr),
 	)
 
-	// ListenAndServe bloque jusqu'à l'arrêt du serveur.
-	// On le lance dans une goroutine pour rendre la main à main().
-	// ErrServerClosed est retourné normalement lors d'un Shutdown() — ce n'est pas une erreur.
+	// Démarrage HTTP en goroutine
 	go func() {
 		if err := s.http.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.log.Error("erreur fatale du serveur HTTP", slog.String("erreur", err.Error()))
 		}
 	}()
+
+	// Démarrage HTTPS si configuré
+	if s.https != nil {
+		s.log.Info("serveur HTTPS démarré",
+			slog.String("adresse", s.https.Addr),
+		)
+		go func() {
+			if err := s.https.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+				s.log.Error("erreur fatale du serveur HTTPS", slog.String("erreur", err.Error()))
+			}
+		}()
+	}
 }
 
 // Shutdown arrête le serveur proprement en attendant la fin des connexions actives.
-// Le context passé en paramètre permet de définir un délai d'attente maximum.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.log.Info("arrêt du serveur en cours...")
 
 	if err := s.http.Shutdown(ctx); err != nil {
-		return fmt.Errorf("erreur lors de l'arrêt du serveur : %w", err)
+		return fmt.Errorf("erreur lors de l'arrêt HTTP : %w", err)
+	}
+
+	// Arrêt HTTPS si actif
+	if s.https != nil {
+		if err := s.https.Shutdown(ctx); err != nil {
+			return fmt.Errorf("erreur lors de l'arrêt HTTPS : %w", err)
+		}
 	}
 
 	s.log.Info("serveur arrêté proprement")
