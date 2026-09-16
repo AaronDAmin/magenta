@@ -95,3 +95,58 @@ func (idx *Index) Clear() {
 	idx.items = make(map[string]*Media)
 	idx.byPath = make(map[string]*Media)
 }
+
+// GetByFolder retourne tous les médias d'un dossier spécifique, triés par nom.
+// Le tri alphabétique garantit l'ordre des épisodes d'une série.
+func (idx *Index) GetByFolder(folder string) []*Media {
+	idx.mu.RLock()
+	defer idx.mu.RUnlock()
+
+	var result []*Media
+	for _, m := range idx.items {
+		if m.Folder == folder {
+			result = append(result, m)
+		}
+	}
+
+	// Tri alphabétique par nom de fichier
+	// Utilise une simple bubble sort (suffisant pour des petites listes)
+	for i := 0; i < len(result)-1; i++ {
+		for j := i + 1; j < len(result); j++ {
+			if result[i].Name > result[j].Name {
+				result[i], result[j] = result[j], result[i]
+			}
+		}
+	}
+
+	return result
+}
+
+// GetNext retourne le média suivant dans le même dossier (ordre alphabétique).
+// Retourne nil si le média est le dernier du dossier ou si le média n'existe pas.
+func (idx *Index) GetNext(id string) *Media {
+	current := idx.Get(id)
+	if current == nil {
+		return nil
+	}
+
+	// Récupère tous les médias du même dossier
+	siblings := idx.GetByFolder(current.Folder)
+	if len(siblings) <= 1 {
+		return nil // un seul fichier dans le dossier
+	}
+
+	// Trouve la position actuelle dans la liste
+	for i, m := range siblings {
+		if m.ID == id {
+			// Si c'est le dernier, retourne nil
+			if i == len(siblings)-1 {
+				return nil
+			}
+			// Sinon retourne le suivant
+			return siblings[i+1]
+		}
+	}
+
+	return nil
+}

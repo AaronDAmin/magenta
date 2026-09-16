@@ -21,6 +21,9 @@ devices.json
 *.crt
 *.key
 
+# Playlists M3U générées
+*.m3u
+
 # Fichiers d'environnement locaux
 .env
 .env.local

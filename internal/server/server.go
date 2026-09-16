@@ -108,6 +108,12 @@ func (s *Server) registerRoutes() {
 	// Route de l'index des médias — retourne la liste complète des fichiers indexés
 	s.router.HandleFunc("GET /api/media", s.handleMediaList)
 
+	// Route pour récupérer l'épisode suivant dans le même dossier
+	s.router.HandleFunc("GET /api/media/{id}/next", s.handleMediaNext)
+
+	// Route pour générer une playlist M3U d'un dossier
+	s.router.HandleFunc("GET /api/playlist", s.handlePlaylist)
+
 	// Route de streaming — diffuse un fichier multimédia par son ID
 	// Supporte les range requests pour le scrubbing vidéo dans VLC
 	s.router.HandleFunc("GET /stream/{id}", s.streamHandler.ServeStream)

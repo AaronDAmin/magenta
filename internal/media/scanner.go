@@ -93,6 +93,7 @@ func (s *Scanner) ScanAll() error {
 				path,
 				filepath.Base(path),
 				ext,
+				filepath.Dir(path), // dossier parent
 				info.Size(),
 				info.ModTime(),
 			)
@@ -157,6 +158,7 @@ func (s *Scanner) ScanFile(path string) bool {
 		path,
 		filepath.Base(path),
 		ext,
+		filepath.Dir(path), // dossier parent
 		info.Size(),
 		info.ModTime(),
 	)

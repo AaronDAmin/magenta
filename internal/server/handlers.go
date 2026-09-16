@@ -4,7 +4,9 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/url"
 )
 
 // handleHealth est la route de santé du serveur.
@@ -76,5 +78,105 @@ func (s *Server) handleMediaList(w http.ResponseWriter, r *http.Request) {
 			"erreur", err.Error(),
 		)
 	}
+}
+
+// handleMediaNext retourne le média suivant dans le même dossier (ordre alphabétique).
+// Utile pour la lecture automatique des épisodes d'une série.
+//
+// Exemple de requête : GET /api/media/abc123/next
+//
+// Réponse si un épisode suivant existe :
+//
+//	{
+//	  "id": "def456",
+//	  "name": "Episode_02.mkv",
+//	  "folder": "D:/Videos/Series/Season1",
+//	  ...
+//	}
+//
+// Réponse si c'est le dernier épisode : 404 Not Found
+func (s *Server) handleMediaNext(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		http.Error(w, "ID manquant", http.StatusBadRequest)
+		return
+	}
+
+	next := s.index.GetNext(id)
+	if next == nil {
+		http.Error(w, "Aucun média suivant trouvé", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(next); err != nil {
+		s.log.Error("erreur lors de l'encodage JSON de /api/media/{id}/next",
+			"erreur", err.Error(),
+		)
+	}
+}
+
+// handlePlaylist génère une playlist M3U pour tous les fichiers d'un dossier.
+// Compatible avec VLC, permet la lecture automatique des épisodes d'une série.
+//
+// Paramètres query :
+// - folder : chemin du dossier (requis)
+// - token : token d'authentification (optionnel, sera ajouté aux URLs si présent)
+//
+// Exemple de requête : GET /api/playlist?folder=D:/Videos/Series/Season1&token=xyz
+//
+// Réponse (format M3U) :
+//
+//	#EXTM3U
+//	#EXTINF:-1,Episode_01.mkv
+//	http://192.168.1.10:8080/stream/abc123?token=xyz
+//	#EXTINF:-1,Episode_02.mkv
+//	http://192.168.1.10:8080/stream/def456?token=xyz
+func (s *Server) handlePlaylist(w http.ResponseWriter, r *http.Request) {
+	folder := r.URL.Query().Get("folder")
+	if folder == "" {
+		http.Error(w, "Paramètre 'folder' manquant", http.StatusBadRequest)
+		return
+	}
+
+	token := r.URL.Query().Get("token")
+
+	// Récupération de tous les médias du dossier
+	medias := s.index.GetByFolder(folder)
+	if len(medias) == 0 {
+		http.Error(w, "Aucun média trouvé dans ce dossier", http.StatusNotFound)
+		return
+	}
+
+	// Construction de l'URL de base pour le streaming
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	baseURL := fmt.Sprintf("%s://%s", scheme, r.Host)
+
+	// Génération du fichier M3U
+	w.Header().Set("Content-Type", "audio/x-mpegurl")
+	w.Header().Set("Content-Disposition", "attachment; filename=\"playlist.m3u\"")
+
+	fmt.Fprintln(w, "#EXTM3U")
+
+	for _, m := range medias {
+		// Ligne d'info (durée inconnue = -1)
+		fmt.Fprintf(w, "#EXTINF:-1,%s\n", m.Name)
+
+		// URL de streaming
+		streamURL := fmt.Sprintf("%s/stream/%s", baseURL, m.ID)
+		if token != "" {
+			streamURL += "?token=" + url.QueryEscape(token)
+		}
+		fmt.Fprintln(w, streamURL)
+	}
+
+	s.log.Info("playlist générée",
+		"dossier", folder,
+		"fichiers", len(medias),
+		"ip", r.RemoteAddr,
+	)
 }
 

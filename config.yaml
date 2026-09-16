@@ -31,7 +31,7 @@ media:
   dirs:
     - "D:/Videos"
     # - "D:/Films"
-    # - "D:/Series"
+    - "D:/Series"
 
   # Extensions de fichiers considérées comme des médias (sans le point).
   extensions:

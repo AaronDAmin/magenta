@@ -20,6 +20,10 @@ type Media struct {
 	// Ce champ n'est PAS exposé dans l'API publique pour des raisons de sécurité.
 	Path string `json:"-"`
 
+	// Folder est le chemin du dossier parent contenant ce fichier.
+	// Utile pour regrouper les épisodes d'une série ou les films d'une collection.
+	Folder string `json:"folder"`
+
 	// Size est la taille du fichier en octets.
 	Size int64 `json:"size"`
 
@@ -32,11 +36,12 @@ type Media struct {
 
 // NewMedia crée un Media à partir du chemin complet d'un fichier et de ses métadonnées.
 // L'ID est calculé en hashant le chemin avec SHA256.
-func NewMedia(path, name, ext string, size int64, modTime time.Time) *Media {
+func NewMedia(path, name, ext, folder string, size int64, modTime time.Time) *Media {
 	return &Media{
 		ID:         generateID(path),
 		Name:       name,
 		Path:       path,
+		Folder:     folder,
 		Size:       size,
 		Extension:  ext,
 		ModifiedAt: modTime,
