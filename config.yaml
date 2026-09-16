@@ -19,8 +19,15 @@ server:
   write_timeout_sec: 0
 
 media:
+  # Racines autorisées pour la sécurité.
+  # Seuls les répertoires sous ces racines peuvent être scannés.
+  # Cette protection empêche l'exposition accidentelle de fichiers système.
+  allowed_roots:
+    - "D:/"
+
   # Liste des répertoires contenant les fichiers multimédias à exposer.
   # Utiliser des chemins absolus. Plusieurs dossiers sont supportés.
+  # IMPORTANT : chaque chemin DOIT être sous l'une des racines autorisées ci-dessus.
   dirs:
     - "D:/Videos"
     # - "D:/Films"

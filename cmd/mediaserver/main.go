@@ -15,6 +15,7 @@ import (
 
 	"github.com/AaronDAmin/magenta/internal/config"
 	"github.com/AaronDAmin/magenta/internal/logger"
+	"github.com/AaronDAmin/magenta/internal/media"
 	"github.com/AaronDAmin/magenta/internal/server"
 )
 
@@ -54,18 +55,47 @@ func main() {
 	)
 	log.Debug("configuration chargée", slog.String("config", cfg.String()))
 
+	// --- Initialisation de l'index et du scanner ---
+	index := media.NewIndex()
+	scanner := media.NewScanner(cfg, log, index)
+
+	// Scan initial en arrière-plan (ne bloque pas le démarrage du serveur)
+	go func() {
+		if err := scanner.ScanAll(); err != nil {
+			log.Error("erreur lors du scan initial", slog.String("erreur", err.Error()))
+		}
+	}()
+
+	// --- Démarrage du watcher pour surveiller les changements ---
+	watcher, err := media.NewWatcher(cfg, log, index, scanner)
+	if err != nil {
+		log.Error("impossible de créer le watcher", slog.String("erreur", err.Error()))
+		os.Exit(1)
+	}
+
+	go func() {
+		if err := watcher.Start(); err != nil {
+			log.Error("erreur du watcher", slog.String("erreur", err.Error()))
+		}
+	}()
+
 	// --- Gestion des signaux système pour un arrêt propre ---
 	// On écoute SIGINT (Ctrl+C) et SIGTERM (signal d'arrêt système)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	// --- Initialisation et démarrage du serveur HTTP ---
-	srv := server.New(cfg, log)
+	srv := server.New(cfg, log, index)
 	srv.Start()
 
 	// Attente du signal d'arrêt
 	<-ctx.Done()
 	log.Info("signal d'arrêt reçu, extinction en cours...")
+
+	// Arrêt du watcher
+	if err := watcher.Stop(); err != nil {
+		log.Error("erreur lors de l'arrêt du watcher", slog.String("erreur", err.Error()))
+	}
 
 	// Arrêt propre avec un timeout de 10 secondes pour laisser les connexions actives se terminer
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

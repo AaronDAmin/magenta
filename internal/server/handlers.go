@@ -41,3 +41,40 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 }
+
+// handleMediaList retourne la liste complète des fichiers multimédias indexés.
+//
+// Exemple de réponse :
+//
+//	{
+//	  "total": 42,
+//	  "items": [
+//	    {
+//	      "id": "a3f5e8d2...",
+//	      "name": "Film.2024.1080p.mkv",
+//	      "size": 2147483648,
+//	      "extension": "mkv",
+//	      "modified_at": "2026-09-15T18:30:00Z"
+//	    },
+//	    ...
+//	  ]
+//	}
+func (s *Server) handleMediaList(w http.ResponseWriter, r *http.Request) {
+	// Récupération de tous les médias depuis l'index
+	allMedia := s.index.All()
+
+	// Construction de la réponse JSON
+	response := map[string]interface{}{
+		"total": len(allMedia),
+		"items": allMedia,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		s.log.Error("erreur lors de l'encodage JSON de /api/media",
+			"erreur", err.Error(),
+		)
+	}
+}
+

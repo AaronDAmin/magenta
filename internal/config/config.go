@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -42,7 +44,13 @@ type ServerConfig struct {
 
 // MediaConfig contient les paramètres liés aux médias.
 type MediaConfig struct {
+	// AllowedRoots est la liste des racines autorisées pour la sécurité.
+	// Seuls les chemins sous ces racines peuvent être scannés.
+	// Cette protection empêche l'exposition accidentelle de fichiers système ou personnels.
+	AllowedRoots []string `yaml:"allowed_roots"`
+
 	// Dirs est la liste des répertoires à scanner pour trouver les fichiers multimédias.
+	// Chaque chemin DOIT être sous l'une des racines autorisées (allowed_roots).
 	Dirs []string `yaml:"dirs"`
 
 	// Extensions est la liste des extensions de fichiers considérées comme des médias.
@@ -86,10 +94,73 @@ func (c *Config) validate() error {
 	if c.Server.Port <= 0 || c.Server.Port > 65535 {
 		return fmt.Errorf("server.port doit être entre 1 et 65535, valeur reçue : %d", c.Server.Port)
 	}
+	if len(c.Media.AllowedRoots) == 0 {
+		return fmt.Errorf("media.allowed_roots ne peut pas être vide : au moins une racine doit être autorisée")
+	}
 	if len(c.Media.Dirs) == 0 {
 		return fmt.Errorf("media.dirs ne peut pas être vide : au moins un répertoire doit être configuré")
 	}
+
+	// Validation de sécurité : vérifier que tous les dirs sont sous les racines autorisées
+	if err := c.validateMediaDirs(); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// validateMediaDirs vérifie que chaque répertoire média est sous une racine autorisée.
+// Cette validation empêche l'exposition accidentelle de fichiers système sensibles.
+func (c *Config) validateMediaDirs() error {
+	for _, dir := range c.Media.Dirs {
+		// Résolution des liens symboliques pour éviter les contournements
+		realPath, err := filepath.EvalSymlinks(dir)
+		if err != nil {
+			// Si le chemin n'existe pas encore, on utilise le chemin nettoyé
+			realPath = filepath.Clean(dir)
+		}
+
+		// Vérification : le chemin doit être sous l'une des racines autorisées
+		allowed := false
+		for _, root := range c.Media.AllowedRoots {
+			realRoot, err := filepath.EvalSymlinks(root)
+			if err != nil {
+				realRoot = filepath.Clean(root)
+			}
+
+			// Vérifie si realPath commence par realRoot
+			if isUnderRoot(realPath, realRoot) {
+				allowed = true
+				break
+			}
+		}
+
+		if !allowed {
+			return fmt.Errorf(
+				"répertoire refusé : %q n'est pas sous l'une des racines autorisées %v (sécurité)",
+				dir, c.Media.AllowedRoots,
+			)
+		}
+	}
+	return nil
+}
+
+// isUnderRoot vérifie si path est sous root (ou égal à root).
+// Les chemins sont normalisés pour gérer les différences de casse sur Windows.
+func isUnderRoot(path, root string) bool {
+	// Normalisation des chemins (gère les séparateurs et la casse)
+	path = filepath.Clean(path)
+	root = filepath.Clean(root)
+
+	// Sur Windows, la comparaison doit être insensible à la casse
+	// filepath.VolumeName gère correctement les volumes Windows
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+
+	// Si le chemin relatif commence par "..", alors path n'est PAS sous root
+	return !strings.HasPrefix(rel, "..")
 }
 
 // String retourne une représentation JSON lisible de la config (utile pour le debug).

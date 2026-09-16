@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/AaronDAmin/magenta/internal/config"
+	"github.com/AaronDAmin/magenta/internal/media"
 )
 
 // Server encapsule le serveur HTTP et ses dépendances.
@@ -18,17 +19,19 @@ type Server struct {
 	cfg    *config.Config
 	log    *slog.Logger
 	router *http.ServeMux // routeur interne
+	index  *media.Index   // index des médias
 }
 
 // New crée et configure un nouveau Server prêt à démarrer.
 // Il enregistre toutes les routes et les middlewares au moment de la construction.
-func New(cfg *config.Config, log *slog.Logger) *Server {
+func New(cfg *config.Config, log *slog.Logger, index *media.Index) *Server {
 	mux := http.NewServeMux()
 
 	s := &Server{
 		cfg:    cfg,
 		log:    log,
 		router: mux,
+		index:  index,
 	}
 
 	// Enregistrement des routes — chaque groupe de routes est isolé
@@ -99,8 +102,8 @@ func (s *Server) registerRoutes() {
 	// Accessible depuis un navigateur ou avec : curl http://<ip>:8080/health
 	s.router.HandleFunc("GET /health", s.handleHealth)
 
-	// TODO (Étape 3) : routes de l'index des médias
-	// s.router.HandleFunc("GET /api/media", s.handleMediaList)
+	// Route de l'index des médias — retourne la liste complète des fichiers indexés
+	s.router.HandleFunc("GET /api/media", s.handleMediaList)
 
 	// TODO (Étape 4) : routes de streaming
 	// s.router.HandleFunc("GET /stream/{id}", s.handleStream)
