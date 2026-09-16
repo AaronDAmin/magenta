@@ -17,6 +17,7 @@ import (
 	"github.com/AaronDAmin/magenta/internal/auth"
 	"github.com/AaronDAmin/magenta/internal/config"
 	"github.com/AaronDAmin/magenta/internal/logger"
+	"github.com/AaronDAmin/magenta/internal/mdns"
 	"github.com/AaronDAmin/magenta/internal/media"
 	"github.com/AaronDAmin/magenta/internal/server"
 )
@@ -92,6 +93,22 @@ func main() {
 		}
 	}()
 
+	// --- Démarrage du mDNS (découverte réseau) ---
+	var mdnsServer *mdns.Server
+	if cfg.MDNS.Enabled {
+		name := cfg.MDNS.Name
+		if name == "" {
+			name = "magenta"
+		}
+		mdnsServer, err = mdns.New(log, name, cfg.Server.Port)
+		if err != nil {
+			// mDNS non critique : on logge l'erreur mais on continue
+			log.Warn("mDNS indisponible, le serveur reste accessible par IP",
+				slog.String("erreur", err.Error()),
+			)
+		}
+	}
+
 	// --- Gestion des signaux système pour un arrêt propre ---
 	// On écoute SIGINT (Ctrl+C) et SIGTERM (signal d'arrêt système)
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -108,6 +125,11 @@ func main() {
 	// Arrêt du watcher
 	if err := watcher.Stop(); err != nil {
 		log.Error("erreur lors de l'arrêt du watcher", slog.String("erreur", err.Error()))
+	}
+
+	// Arrêt du mDNS
+	if mdnsServer != nil {
+		mdnsServer.Stop()
 	}
 
 	// Arrêt propre avec un timeout de 10 secondes pour laisser les connexions actives se terminer

@@ -50,3 +50,12 @@ log:
 
   # Format JSON des logs (true = production, false = texte lisible en développement)
   json: false
+
+mdns:
+  # Activation de la découverte réseau mDNS.
+  # Permet d'accéder au serveur via http://magenta.local:8080
+  enabled: true
+
+  # Nom de l'instance sur le réseau local.
+  # Le serveur sera accessible via http://<name>.local:<port>
+  name: "magenta"

@@ -23,6 +23,9 @@ type Config struct {
 
 	// Log regroupe les paramètres de logging.
 	Log LogConfig `yaml:"log"`
+
+	// MDNS regroupe les paramètres de découverte réseau.
+	MDNS MDNSConfig `yaml:"mdns"`
 }
 
 // ServerConfig contient les paramètres réseau du serveur.
@@ -64,6 +67,15 @@ type LogConfig struct {
 
 	// JSON indique si les logs doivent être émis en format JSON (true) ou texte (false).
 	JSON bool `yaml:"json"`
+}
+
+// MDNSConfig contient les paramètres de découverte réseau mDNS.
+type MDNSConfig struct {
+	// Enabled active ou désactive la découverte mDNS.
+	Enabled bool `yaml:"enabled"`
+
+	// Name est le nom de l'instance sur le réseau (ex: "magenta" → "magenta.local").
+	Name string `yaml:"name"`
 }
 
 // Load lit et parse le fichier de configuration YAML au chemin indiqué.
