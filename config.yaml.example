@@ -1,0 +1,36 @@
+server:
+  host: "0.0.0.0"
+  port: 8080
+  read_timeout_sec: 30
+  write_timeout_sec: 0  # 0 = no limit (recommended for video streaming)
+
+media:
+  # Security: only directories under these roots can be scanned
+  allowed_roots:
+    - "/media"        # Linux/macOS example
+    - "C:/Videos"     # Windows example
+
+  dirs:
+    - "/media/movies"
+    - "/media/series"
+
+  extensions:
+    - "mp4"
+    - "mkv"
+    - "avi"
+    - "mov"
+    - "webm"
+
+log:
+  level: "info"   # debug | info | warn | error
+  json: false     # true = JSON (production), false = text (development)
+
+mdns:
+  enabled: true
+  name: "magenta"   # accessible via http://magenta.local:8080
+
+tls:
+  enabled: false
+  # cert_file: "magenta.crt"
+  # key_file: "magenta.key"
+  # port: 8443

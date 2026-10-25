@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Magenta — Demande d'accès</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="auth-page">
+  <div class="auth-bg"></div>
+
+  <nav class="auth-nav">
+    <div class="auth-logo">MAGENTA<span>.</span></div>
+  </nav>
+
+  <div class="auth-center">
+    <div class="auth-box">
+
+      <!-- Formulaire d'inscription -->
+      <div id="registerForm">
+        <h1>Demander l'accès</h1>
+        <p class="subtitle">Créez votre compte — l'admin validera votre accès</p>
+
+        <div id="msg" class="msg"></div>
+
+        <div class="form-group">
+          <label for="username">Nom d'utilisateur</label>
+          <input type="text" id="username" autocomplete="username"
+                 placeholder="choisissez un nom" autofocus
+                 minlength="2" maxlength="32">
+        </div>
+        <div class="form-group">
+          <label for="password">Mot de passe</label>
+          <input type="password" id="password" autocomplete="new-password"
+                 placeholder="au moins 4 caractères">
+        </div>
+        <div class="form-group">
+          <label for="confirm">Confirmer le mot de passe</label>
+          <input type="password" id="confirm" autocomplete="new-password"
+                 placeholder="répétez le mot de passe">
+        </div>
+
+        <button class="btn-submit" id="submitBtn" onclick="register()">
+          Envoyer la demande
+        </button>
+
+        <div class="auth-switch">
+          Déjà un compte ? <a href="/login">Se connecter</a>
+        </div>
+      </div>
+
+      <!-- Écran d'attente après inscription réussie -->
+      <div id="pendingScreen" style="display:none;">
+        <div class="pending-box">
+          <div class="pending-icon">✉️</div>
+          <div class="pending-title">Demande envoyée !</div>
+          <p class="pending-sub">
+            Votre demande a bien été transmise à l'administrateur.<br>
+            Revenez sur la page de connexion une fois votre accès approuvé.
+          </p>
+          <br>
+          <a href="/login">
+            <button class="btn-submit">Aller à la connexion</button>
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Soumission avec Enter
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && document.getElementById('pendingScreen').style.display === 'none') {
+        register();
+      }
+    });
+
+    async function register() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const confirm  = document.getElementById('confirm').value;
+
+      if (!username || !password || !confirm) {
+        showMsg('Veuillez renseigner tous les champs.', 'error');
+        return;
+      }
+
+      if (username.length < 2 || username.length > 32) {
+        showMsg('Le nom d\'utilisateur doit contenir entre 2 et 32 caractères.', 'error');
+        return;
+      }
+
+      if (password.length < 4) {
+        showMsg('Le mot de passe doit contenir au moins 4 caractères.', 'error');
+        return;
+      }
+
+      if (password !== confirm) {
+        showMsg('Les mots de passe ne correspondent pas.', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = 'Envoi...';
+      hideMsg();
+
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          showMsg(data.error || 'Une erreur est survenue.', 'error');
+          btn.disabled = false;
+          btn.textContent = 'Envoyer la demande';
+          return;
+        }
+
+        // Inscription réussie
+        document.getElementById('registerForm').style.display = 'none';
+        document.getElementById('pendingScreen').style.display = 'block';
+
+      } catch (e) {
+        showMsg('Impossible de contacter le serveur.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Envoyer la demande';
+      }
+    }
+
+    function showMsg(text, type) {
+      const el = document.getElementById('msg');
+      el.textContent = text;
+      el.className = `msg ${type}`;
+      el.style.display = 'block';
+    }
+
+    function hideMsg() {
+      document.getElementById('msg').style.display = 'none';
+    }
+  </script>
+</body>
+</html>

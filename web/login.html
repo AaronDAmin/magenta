@@ -1,75 +1,176 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Magenta - Connexion</title>
-    <link rel="stylesheet" href="/static/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Magenta — Connexion</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
-    <div class="login-wrapper">
-        <div class="login-box">
-            <h1>🎬 Magenta</h1>
-            <p style="text-align: center; color: var(--text-secondary); margin-bottom: 2rem;">
-                Entrez votre token d'accès pour continuer
-            </p>
-            
-            <div id="error" class="error" style="display: none;"></div>
-            
-            <form id="loginForm">
-                <div class="form-group">
-                    <label for="token">Token d'authentification</label>
-                    <input 
-                        type="text" 
-                        id="token" 
-                        name="token" 
-                        placeholder="Collez votre token ici"
-                        required 
-                        autocomplete="off"
-                    >
-                </div>
-                
-                <button type="submit">Se connecter</button>
-            </form>
+<body class="auth-page">
+  <div class="auth-bg"></div>
+
+  <nav class="auth-nav">
+    <div class="auth-logo">MAGENTA<span>.</span></div>
+  </nav>
+
+  <div class="auth-center">
+    <div class="auth-box">
+      <h1>Se connecter</h1>
+      <p class="subtitle">Accédez à votre bibliothèque Magenta</p>
+
+      <div id="msg" class="msg"></div>
+
+      <!-- Formulaire de connexion -->
+      <div id="loginForm">
+        <div class="form-group">
+          <label for="username">Nom d'utilisateur</label>
+          <input type="text" id="username" autocomplete="username" placeholder="votre nom d'utilisateur" autofocus>
         </div>
+        <div class="form-group">
+          <label for="password">Mot de passe</label>
+          <input type="password" id="password" autocomplete="current-password" placeholder="••••••••">
+        </div>
+        <button class="btn-submit" id="submitBtn" onclick="login()">Se connecter</button>
+        <div class="auth-switch">
+          Pas encore de compte ? <a href="/register">Demander l'accès</a>
+        </div>
+      </div>
+
+      <!-- État en attente d'approbation -->
+      <div id="pendingBox" class="pending-box" style="display:none;">
+        <div class="pending-icon">⏳</div>
+        <div class="pending-title">En attente d'approbation</div>
+        <p class="pending-sub">
+          Votre compte a bien été créé.<br>
+          L'administrateur doit approuver votre accès.<br>
+          Cette page se met à jour automatiquement.
+        </p>
+        <br>
+        <button class="btn-submit" onclick="cancelPending()">← Retour</button>
+      </div>
     </div>
+  </div>
 
-    <script>
-        const form = document.getElementById('loginForm');
-        const errorDiv = document.getElementById('error');
+  <script>
+    let pollInterval = null;
+    let pendingRequestId = null;
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const token = document.getElementById('token').value.trim();
-            
-            if (!token) {
-                showError('Veuillez entrer un token');
-                return;
-            }
+    // Soumission du formulaire avec Enter
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        const pBox = document.getElementById('pendingBox');
+        if (pBox.style.display === 'none') login();
+      }
+    });
 
-            // Test du token en appelant l'API
-            try {
-                const response = await fetch(`/api/media?token=${encodeURIComponent(token)}`);
-                
-                if (response.ok) {
-                    // Token valide, on stocke dans un cookie et redirige
-                    document.cookie = `magenta_token=${token}; path=/; max-age=${30 * 24 * 60 * 60}; SameSite=Strict`;
-                    window.location.href = '/';
-                } else if (response.status === 401) {
-                    showError('Token invalide ou expiré');
-                } else {
-                    showError('Erreur de connexion au serveur');
-                }
-            } catch (error) {
-                showError('Impossible de se connecter au serveur');
-            }
+    async function login() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+
+      if (!username || !password) {
+        showMsg('Veuillez renseigner tous les champs.', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = 'Connexion...';
+      hideMsg();
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
         });
 
-        function showError(message) {
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
+        const data = await res.json();
+
+        if (!res.ok) {
+          showMsg(data.error || 'Nom d\'utilisateur ou mot de passe incorrect.', 'error');
+          btn.disabled = false;
+          btn.textContent = 'Se connecter';
+          return;
         }
-    </script>
+
+        if (data.status === 'approved') {
+          // Connexion réussie : stocker le token et rediriger
+          setToken(data.token);
+          window.location.href = '/';
+        } else if (data.status === 'pending') {
+          // En attente : afficher le panneau de polling
+          pendingRequestId = data.request_id;
+          showPending();
+          startPolling();
+        }
+
+      } catch (e) {
+        showMsg('Impossible de contacter le serveur.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Se connecter';
+      }
+    }
+
+    function showPending() {
+      document.getElementById('loginForm').style.display = 'none';
+      document.getElementById('pendingBox').style.display = 'block';
+      hideMsg();
+    }
+
+    function cancelPending() {
+      stopPolling();
+      pendingRequestId = null;
+      document.getElementById('pendingBox').style.display = 'none';
+      document.getElementById('loginForm').style.display = 'block';
+      document.getElementById('submitBtn').disabled = false;
+      document.getElementById('submitBtn').textContent = 'Se connecter';
+    }
+
+    function startPolling() {
+      stopPolling();
+      pollInterval = setInterval(async () => {
+        if (!pendingRequestId) return;
+        try {
+          const res = await fetch(`/api/auth/status?request_id=${pendingRequestId}`);
+          const data = await res.json();
+
+          if (data.status === 'approved' && data.token) {
+            stopPolling();
+            setToken(data.token);
+            window.location.href = '/';
+          } else if (data.status === 'revoked') {
+            stopPolling();
+            showMsg('Votre demande a été refusée par l\'administrateur.', 'error');
+            cancelPending();
+          }
+        } catch (e) {
+          // Réseau temporairement indisponible, on réessaie
+        }
+      }, 5000); // Poll toutes les 5 secondes
+    }
+
+    function stopPolling() {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+    }
+
+    function setToken(token) {
+      const maxAge = 30 * 24 * 60 * 60; // 30 jours
+      document.cookie = `magenta_token=${token}; path=/; max-age=${maxAge}; SameSite=Strict`;
+    }
+
+    function showMsg(text, type) {
+      const el = document.getElementById('msg');
+      el.textContent = text;
+      el.className = `msg ${type}`;
+      el.style.display = 'block';
+    }
+
+    function hideMsg() {
+      document.getElementById('msg').style.display = 'none';
+    }
+  </script>
 </body>
 </html>

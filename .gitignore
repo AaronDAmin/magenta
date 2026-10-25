@@ -13,7 +13,8 @@
 # Dépendances téléchargées (Go les gère via go.sum, pas besoin de les versionner)
 vendor/
 
-# Fichier des appareils autorisés — contient des tokens privés, NE PAS committer
+# Données utilisateurs — contiennent des tokens et mots de passe hashés, NE PAS committer
+users.json
 devices.json
 
 # Certificats TLS générés localement
@@ -27,6 +28,12 @@ devices.json
 # Dossier web copié pour le build (source dans /web)
 cmd/mediaserver/web/
 
+# Configuration locale (contient des chemins personnels)
+config.yaml
+
+# Outils de dev personnels
+*.postman_collection.json
+
 # Fichiers d'environnement locaux
 .env
 .env.local
@@ -36,6 +43,9 @@ cmd/mediaserver/web/
 .idea/
 *.swp
 *.swo
+
+# Binaires à la racine
+*.exe
 
 # Fichiers système
 .DS_Store

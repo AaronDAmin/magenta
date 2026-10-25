@@ -5,63 +5,138 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 )
 
-// Middleware crée un middleware d'authentification qui vérifie le token sur toutes les routes protégées.
-// Les routes suivantes sont exclues de l'authentification :
-// - /health (santé du serveur)
-// - /admin/* (gestion des appareils, accessible uniquement depuis localhost)
-func Middleware(store *Store, log *slog.Logger) func(http.Handler) http.Handler {
+// logRateLimiter empêche le spam de logs pour les mêmes erreurs répétées.
+// Chaque clé (ip+token_prefix) n'est loguée qu'une seule fois par minute.
+type logRateLimiter struct {
+	mu      sync.Mutex
+	seen    map[string]time.Time
+	ttl     time.Duration
+}
+
+func newLogRateLimiter() *logRateLimiter {
+	rl := &logRateLimiter{
+		seen: make(map[string]time.Time),
+		ttl:  time.Minute,
+	}
+	// Nettoyage périodique pour éviter les fuites mémoire
+	go func() {
+		for range time.Tick(5 * time.Minute) {
+			rl.mu.Lock()
+			cutoff := time.Now().Add(-rl.ttl)
+			for k, t := range rl.seen {
+				if t.Before(cutoff) {
+					delete(rl.seen, k)
+				}
+			}
+			rl.mu.Unlock()
+		}
+	}()
+	return rl
+}
+
+// allow retourne true si ce log doit être émis (première fois dans la fenêtre TTL).
+func (rl *logRateLimiter) allow(key string) bool {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	if last, ok := rl.seen[key]; ok && time.Since(last) < rl.ttl {
+		return false // déjà loggé récemment
+	}
+	rl.seen[key] = time.Now()
+	return true
+}
+
+// Middleware crée un middleware d'authentification basé sur UserStore.
+// Routes publiques (sans token) :
+//   - /health
+//   - /api/auth/* (login, register, status)
+//   - /static/*
+//   - /login, /register
+//
+// Routes admin (localhost uniquement) :
+//   - /admin/*
+//
+// Toutes les autres routes nécessitent un token valide.
+func Middleware(store *UserStore, log *slog.Logger) func(http.Handler) http.Handler {
+	rl := newLogRateLimiter()
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// Routes publiques (pas d'authentification requise)
-			if r.URL.Path == "/health" || 
-			   r.URL.Path == "/login" || 
-			   strings.HasPrefix(r.URL.Path, "/static/") {
+			path := r.URL.Path
+
+			// Routes publiques
+			if path == "/health" ||
+				path == "/login" ||
+				path == "/register" ||
+				strings.HasPrefix(path, "/api/auth/") ||
+				strings.HasPrefix(path, "/static/") {
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			// Routes admin : accessibles uniquement depuis localhost
-			if strings.HasPrefix(r.URL.Path, "/admin/") {
+			// Routes admin : localhost uniquement, pas de token requis
+			if strings.HasPrefix(path, "/admin") {
 				if !isLocalhost(r.RemoteAddr) {
-					log.Warn("tentative d'accès admin depuis une IP non-localhost",
+					log.Warn("tentative d'accès admin hors localhost",
 						slog.String("ip", r.RemoteAddr),
-						slog.String("path", r.URL.Path),
+						slog.String("path", path),
 					)
-					http.Error(w, "Accès refusé : les routes admin ne sont accessibles que depuis localhost", http.StatusForbidden)
+					http.Error(w, "Accès refusé : admin accessible uniquement depuis localhost", http.StatusForbidden)
 					return
 				}
 				next.ServeHTTP(w, r)
 				return
 			}
 
-			// Toutes les autres routes nécessitent un token valide
+			// Toutes les autres routes : token requis
 			token := extractToken(r)
 			if token == "" {
-				log.Warn("requête sans token",
-					slog.String("ip", r.RemoteAddr),
-					slog.String("path", r.URL.Path),
-				)
-				http.Error(w, "Token d'authentification manquant", http.StatusUnauthorized)
+				// Rate-limit : une seule entrée de log par IP par minute
+				key := "notoken:" + clientIP(r.RemoteAddr)
+				if rl.allow(key) {
+					log.Warn("requête sans token",
+						slog.String("ip", r.RemoteAddr),
+						slog.String("path", path),
+					)
+				}
+				if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/stream/") {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusUnauthorized)
+					w.Write([]byte(`{"error":"Token d'authentification manquant"}`))
+					return
+				}
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
 				return
 			}
 
-			// Vérification du token dans le store
-			device := store.GetByToken(token)
-			if device == nil {
-				log.Warn("token invalide",
-					slog.String("ip", r.RemoteAddr),
-					slog.String("path", r.URL.Path),
-					slog.String("token", token[:min(8, len(token))]+"..."), // log partiel pour debug
-				)
-				http.Error(w, "Token d'authentification invalide", http.StatusUnauthorized)
+			user := store.GetByToken(token)
+			if user == nil {
+				// Rate-limit : une seule entrée de log par token invalide par minute.
+				// Évite le spam quand le navigateur vidéo retente le stream en boucle.
+				key := "badtoken:" + token[:min(8, len(token))]
+				if rl.allow(key) {
+					log.Warn("token invalide ou révoqué",
+						slog.String("ip", r.RemoteAddr),
+						slog.String("path", path),
+						slog.String("token_prefix", token[:min(8, len(token))]),
+					)
+				}
+				if strings.HasPrefix(path, "/api/") || strings.HasPrefix(path, "/stream/") {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusUnauthorized)
+					w.Write([]byte(`{"error":"Token invalide ou révoqué"}`))
+					return
+				}
+				http.Redirect(w, r, "/login", http.StatusSeeOther)
 				return
 			}
 
-			// Token valide, on laisse passer
 			log.Debug("authentification réussie",
-				slog.String("appareil", device.Name),
+				slog.String("username", user.Username),
 				slog.String("ip", r.RemoteAddr),
 			)
 
@@ -70,27 +145,21 @@ func Middleware(store *Store, log *slog.Logger) func(http.Handler) http.Handler 
 	}
 }
 
-// extractToken extrait le token depuis les sources suivantes (par ordre de priorité) :
-// 1. Cookie : magenta_token (pour l'interface web)
-// 2. Query parameter : ?token=xyz (pour VLC et les URLs directes)
-// 3. Header Authorization : Bearer xyz (pour les clients API)
+// extractToken extrait le token depuis (par priorité) :
+// 1. Cookie magenta_token (interface web)
+// 2. Query parameter ?token= (VLC, URLs directes)
+// 3. Header Authorization: Bearer <token> (clients API)
 func extractToken(r *http.Request) string {
-	// 1. Cookie (prioritaire pour l'interface web)
-	cookie, err := r.Cookie("magenta_token")
-	if err == nil && cookie.Value != "" {
+	if cookie, err := r.Cookie("magenta_token"); err == nil && cookie.Value != "" {
 		return cookie.Value
 	}
 
-	// 2. Query parameter (pour VLC)
-	token := r.URL.Query().Get("token")
-	if token != "" {
+	if token := r.URL.Query().Get("token"); token != "" {
 		return token
 	}
 
-	// 3. Header Authorization (format : "Bearer <token>")
-	authHeader := r.Header.Get("Authorization")
-	if authHeader != "" {
-		parts := strings.SplitN(authHeader, " ", 2)
+	if auth := r.Header.Get("Authorization"); auth != "" {
+		parts := strings.SplitN(auth, " ", 2)
 		if len(parts) == 2 && parts[0] == "Bearer" {
 			return parts[1]
 		}
@@ -99,19 +168,19 @@ func extractToken(r *http.Request) string {
 	return ""
 }
 
-// isLocalhost vérifie si une adresse IP correspond à localhost.
+// isLocalhost vérifie si l'adresse est localhost (127.0.0.1, ::1).
 func isLocalhost(remoteAddr string) bool {
-	// RemoteAddr format : "ip:port" ou "[ipv6]:port"
+	host := clientIP(remoteAddr)
+	return host == "127.0.0.1" || host == "::1" || host == "localhost"
+}
+
+// clientIP extrait l'adresse IP depuis "ip:port" ou "[ipv6]:port".
+func clientIP(remoteAddr string) string {
 	host := remoteAddr
 	if idx := strings.LastIndex(remoteAddr, ":"); idx != -1 {
 		host = remoteAddr[:idx]
 	}
-
-	// Suppression des crochets IPv6
-	host = strings.Trim(host, "[]")
-
-	// Vérification des adresses localhost
-	return host == "127.0.0.1" || host == "::1" || host == "localhost"
+	return strings.Trim(host, "[]")
 }
 
 // min retourne le minimum de deux entiers.

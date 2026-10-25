@@ -1,421 +1,269 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Magenta</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <style>
-        /* ── Sections par groupe ── */
-        .section {
-            margin-bottom: 3rem;
-        }
-
-        .section-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 1.25rem;
-            cursor: pointer;
-            user-select: none;
-        }
-
-        .section-title {
-            font-size: 1.3rem;
-            font-weight: 700;
-            color: var(--text-primary);
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .section-count {
-            background: var(--bg-tertiary);
-            color: var(--text-secondary);
-            font-size: 0.75rem;
-            padding: 0.2rem 0.6rem;
-            border-radius: 999px;
-            font-weight: 500;
-        }
-
-        .section-toggle {
-            color: var(--text-secondary);
-            font-size: 1.2rem;
-            transition: transform 0.2s;
-        }
-
-        .section-toggle.collapsed {
-            transform: rotate(-90deg);
-        }
-
-        .section-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-            gap: 1.25rem;
-            transition: opacity 0.2s;
-        }
-
-        .section-grid.collapsed {
-            display: none;
-        }
-
-        /* ── Card ── */
-        .media-card {
-            background: var(--bg-secondary);
-            border-radius: var(--radius);
-            overflow: hidden;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
-            border: 1px solid var(--border);
-            position: relative;
-        }
-
-        .media-card:hover {
-            transform: translateY(-5px) scale(1.02);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
-            border-color: var(--accent);
-        }
-
-        .media-placeholder {
-            width: 100%;
-            height: 130px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2.5rem;
-            background: linear-gradient(135deg, #1f1f1f, #2a2a2a);
-            position: relative;
-        }
-
-        .media-ext-badge {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            background: rgba(0,0,0,0.7);
-            color: var(--text-secondary);
-            font-size: 0.65rem;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-weight: 700;
-            text-transform: uppercase;
-        }
-
-        .media-info {
-            padding: 0.75rem;
-        }
-
-        .media-name {
-            font-size: 0.85rem;
-            font-weight: 600;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            margin-bottom: 0.3rem;
-            color: var(--text-primary);
-        }
-
-        .media-size {
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-        }
-
-        /* ── Boutons action ── */
-        .media-actions {
-            display: flex;
-            gap: 0.4rem;
-            padding: 0 0.75rem 0.75rem;
-        }
-
-        .btn-play {
-            flex: 1;
-            padding: 0.4rem 0;
-            background: var(--accent);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-            width: auto;
-        }
-
-        .btn-play:hover { background: var(--accent-hover); }
-
-        .btn-vlc {
-            flex: 1;
-            padding: 0.4rem 0;
-            background: var(--bg-tertiary);
-            color: var(--text-secondary);
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            width: auto;
-        }
-
-        .btn-vlc:hover {
-            background: #FF7B00;
-            color: white;
-            border-color: #FF7B00;
-        }
-
-        /* ── Header / Controls ── */
-        .page-header {
-            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
-            padding: 1rem 0 0;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            backdrop-filter: blur(8px);
-        }
-
-        .header-inner {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 0 2rem 1rem;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 1rem;
-            flex-wrap: wrap;
-        }
-
-        .search-bar {
-            flex: 1;
-            min-width: 220px;
-            max-width: 400px;
-            position: relative;
-        }
-
-        .search-bar input {
-            width: 100%;
-            padding: 0.6rem 1rem 0.6rem 2.5rem;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: 999px;
-            color: var(--text-primary);
-            font-size: 0.9rem;
-        }
-
-        .search-bar::before {
-            content: '🔍';
-            position: absolute;
-            left: 0.75rem;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 0.85rem;
-            pointer-events: none;
-        }
-
-        .stats {
-            color: var(--text-secondary);
-            font-size: 0.85rem;
-            white-space: nowrap;
-        }
-
-        /* ── Empty state ── */
-        .empty {
-            text-align: center;
-            padding: 5rem 2rem;
-            color: var(--text-secondary);
-        }
-
-        .empty-icon {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-        }
-
-        /* ── Responsive ── */
-        @media (max-width: 600px) {
-            .section-grid {
-                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-                gap: 0.75rem;
-            }
-            .header-inner {
-                padding: 0 1rem 1rem;
-            }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Magenta</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="page-header">
-        <div class="header-inner">
-            <a href="/" class="logo">🎬 Magenta</a>
-            <div class="search-bar">
-                <input type="text" id="searchInput" placeholder="Rechercher...">
-            </div>
-            <div class="stats" id="stats">Chargement...</div>
+
+  <!-- ── Navbar ───────────────────────────────────────────── -->
+  <nav class="navbar" id="navbar">
+    <a href="/" class="navbar-brand">MAGENTA<span>.</span></a>
+    <div class="navbar-right">
+      <span class="navbar-user" id="navUser"></span>
+      <button class="btn-logout" onclick="logout()">Déconnexion</button>
+    </div>
+  </nav>
+
+  <!-- ── Hero ─────────────────────────────────────────────── -->
+  <div class="hero" id="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-vignette"></div>
+    <div class="hero-content">
+      <div class="hero-logo">MAGENTA<span>.</span></div>
+      <p class="hero-tagline">Votre cinéma privé, accessible depuis n'importe quel appareil sur votre réseau.</p>
+      <div class="hero-stats" id="heroStats">
+        <div class="hero-stat">
+          <div class="hero-stat-value" id="statTotal">—</div>
+          <div class="hero-stat-label">Médias</div>
         </div>
+        <div class="hero-stat">
+          <div class="hero-stat-value" id="statGroups">—</div>
+          <div class="hero-stat-label">Séries / Films</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Contenu ───────────────────────────────────────────── -->
+  <div class="library-content">
+
+    <!-- Barre de recherche -->
+    <div class="search-section">
+      <div class="search-wrapper">
+        <div class="search-input-wrap">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input class="search-input" id="searchInput" type="text" placeholder="Rechercher un film, une série...">
+        </div>
+        <span class="media-count" id="mediaCount"></span>
+      </div>
     </div>
 
-    <div class="container" style="padding-top: 1.5rem;">
-        <div id="content"></div>
-        <div id="empty" class="empty" style="display:none;">
-            <div class="empty-icon">🎬</div>
-            <h2>Aucun résultat</h2>
-            <p>Essaie un autre terme de recherche</p>
-        </div>
+    <!-- Rows -->
+    <div id="rows"></div>
+
+    <!-- État vide -->
+    <div class="empty-state" id="emptyState">
+      <div class="empty-state-icon">🎬</div>
+      <h2>Aucun résultat</h2>
+      <p>Essaie un autre terme de recherche</p>
     </div>
+  </div>
 
-    <script>
-        let allGroups = [];
-        let searchTerm = '';
+  <script>
+    let allGroups = [];
+    let searchTerm = '';
 
-        // ── Récupération du token ──────────────────────────────────────────────
-        function getToken() {
-            const m = document.cookie.match(/magenta_token=([^;]+)/);
-            return m ? m[1] : null;
-        }
+    // ── Token ─────────────────────────────────────────────────
+    function getToken() {
+      const m = document.cookie.match(/magenta_token=([^;]+)/);
+      return m ? decodeURIComponent(m[1]) : null;
+    }
 
-        // ── Chargement des groupes ─────────────────────────────────────────────
-        async function loadGroups() {
-            const token = getToken();
-            if (!token) { window.location.href = '/login'; return; }
+    function logout() {
+      document.cookie = 'magenta_token=; path=/; max-age=-1';
+      window.location.href = '/login';
+    }
 
-            try {
-                const res = await fetch(`/api/folders?token=${encodeURIComponent(token)}`);
-                if (res.status === 401) { window.location.href = '/login'; return; }
+    // ── Navbar scroll effect ──────────────────────────────────
+    window.addEventListener('scroll', () => {
+      document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 80);
+    });
 
-                const data = await res.json();
-                allGroups = data.groups || [];
+    // ── Chargement initial ────────────────────────────────────
+    async function load() {
+      const token = getToken();
+      if (!token) { window.location.href = '/login'; return; }
 
-                const total = data.total || 0;
-                const groupCount = allGroups.length;
-                document.getElementById('stats').textContent =
-                    `${total} médias · ${groupCount} ${groupCount > 1 ? 'groupes' : 'groupe'}`;
+      // Afficher le nom d'utilisateur stocké
+      const savedUser = sessionStorage.getItem('mg_username');
+      if (savedUser) document.getElementById('navUser').textContent = savedUser;
 
-                render();
-            } catch (e) {
-                console.error('Erreur chargement:', e);
-            }
-        }
-
-        // ── Rendu ──────────────────────────────────────────────────────────────
-        function render() {
-            const content = document.getElementById('content');
-            const empty = document.getElementById('empty');
-            const q = searchTerm.toLowerCase();
-
-            // Filtrage
-            const filtered = allGroups.map(group => ({
-                ...group,
-                items: group.items.filter(m => m.name.toLowerCase().includes(q))
-            })).filter(group => group.items.length > 0);
-
-            if (filtered.length === 0) {
-                content.innerHTML = '';
-                empty.style.display = 'block';
-                return;
-            }
-
-            empty.style.display = 'none';
-
-            content.innerHTML = filtered.map(group => `
-                <div class="section">
-                    <div class="section-header" onclick="toggleSection(this)">
-                        <div class="section-title">
-                            ${groupIcon(group)}
-                            ${escHtml(group.name)}
-                            <span class="section-count">${group.items.length}</span>
-                        </div>
-                        <span class="section-toggle">▼</span>
-                    </div>
-                    <div class="section-grid">
-                        ${group.items.map(m => cardHTML(m)).join('')}
-                    </div>
-                </div>
-            `).join('');
-
-            // Ajout des handlers de clic sur les cards
-            content.querySelectorAll('.media-card').forEach(card => {
-                card.addEventListener('click', () => {
-                    window.location.href = `/player?id=${card.dataset.id}`;
-                });
-            });
-        }
-
-        // ── Card HTML ──────────────────────────────────────────────────────────
-        function cardHTML(m) {
-            const token = getToken();
-            return `
-                <div class="media-card" data-id="${m.id}">
-                    <div class="media-placeholder">
-                        🎬
-                        <span class="media-ext-badge">${m.extension}</span>
-                    </div>
-                    <div class="media-info">
-                        <div class="media-name" title="${escHtml(m.name)}">${escHtml(m.name)}</div>
-                        <div class="media-size">${formatSize(m.size)}</div>
-                    </div>
-                    <div class="media-actions">
-                        <button class="btn-play" onclick="event.stopPropagation(); window.location.href='/player?id=${m.id}'">▶ Lire</button>
-                        <button class="btn-vlc" onclick="event.stopPropagation(); openVLC('${m.id}', '${token}')">📺 VLC</button>
-                    </div>
-                </div>
-            `;
-        }
-
-        // ── Ouverture VLC selon la plateforme ──────────────────────────────────
-        // Chrome/Edge bloquent les protocoles custom (vlc://) depuis 2021.
-        // La solution universelle et fiable : fichier .m3u que Windows/Android
-        // ouvre automatiquement dans VLC (association de fichier).
-        function openVLC(mediaId, token) {
-            const ua = navigator.userAgent;
-            const encodedToken = encodeURIComponent(token);
-
-            if (/Android/i.test(ua)) {
-                // Android : intent direct vers VLC (pas de téléchargement)
-                const host = location.host;
-                window.location = `intent://${host}/stream/${mediaId}?token=${encodedToken}#Intent;package=org.videolan.vlc;scheme=http;end`;
-            } else {
-                // PC et iOS : téléchargement .m3u
-                // Windows associe automatiquement .m3u à VLC → VLC s'ouvre directement
-                // iOS : VLC iOS ouvre les .m3u automatiquement
-                window.location = `/stream/${mediaId}/vlc?token=${encodedToken}`;
-            }
-        }
-
-        // ── Icône de groupe selon le contenu ───────────────────────────────────
-        function groupIcon(group) {
-            if (group.items.length === 1) return '🎬';
-            return '📺';
-        }
-
-        // ── Toggle collapse ────────────────────────────────────────────────────
-        function toggleSection(header) {
-            const grid = header.nextElementSibling;
-            const toggle = header.querySelector('.section-toggle');
-            grid.classList.toggle('collapsed');
-            toggle.classList.toggle('collapsed');
-        }
-
-        // ── Helpers ───────────────────────────────────────────────────────────
-        function formatSize(bytes) {
-            if (!bytes) return '';
-            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + ' KB';
-            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
-        }
-
-        function escHtml(s) {
-            return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-        }
-
-        // ── Recherche avec debounce ─────────────────────────────────────────────
-        let debounceTimer;
-        document.getElementById('searchInput').addEventListener('input', e => {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                searchTerm = e.target.value;
-                render();
-            }, 200);
+      try {
+        const res = await fetch('/api/folders', {
+          headers: { 'Authorization': `Bearer ${token}` }
         });
 
-        // ── Init ───────────────────────────────────────────────────────────────
-        loadGroups();
-    </script>
+        if (res.status === 401) { logout(); return; }
+
+        const data = await res.json();
+        allGroups = data.groups || [];
+
+        document.getElementById('statTotal').textContent  = data.total || 0;
+        document.getElementById('statGroups').textContent = allGroups.length;
+        document.getElementById('mediaCount').textContent =
+          `${data.total || 0} médias · ${allGroups.length} groupes`;
+
+        render();
+
+      } catch (e) {
+        console.error('Erreur chargement:', e);
+      }
+    }
+
+    // ── Rendu des rows ────────────────────────────────────────
+    function render() {
+      const q = searchTerm.toLowerCase();
+      const rows = document.getElementById('rows');
+      const empty = document.getElementById('emptyState');
+
+      const filtered = allGroups.map(g => ({
+        ...g,
+        items: g.items.filter(m =>
+          m.name.toLowerCase().includes(q) ||
+          g.name.toLowerCase().includes(q)
+        )
+      })).filter(g => g.items.length > 0);
+
+      if (filtered.length === 0) {
+        rows.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+
+      empty.style.display = 'none';
+
+      rows.innerHTML = filtered.map(g => `
+        <div class="row">
+          <div class="row-header" onclick="toggleRow(this)">
+            <div class="row-title">
+              <span class="row-title-icon">${g.items.length === 1 ? '🎬' : '📺'}</span>
+              ${escHtml(g.name)}
+              <span class="row-count">${g.items.length}</span>
+            </div>
+            <span class="row-arrow">▼</span>
+          </div>
+          <div class="cards-grid" style="max-height: 2000px;">
+            ${g.items.map(m => cardHTML(m)).join('')}
+          </div>
+        </div>
+      `).join('');
+
+      // Clic sur la card entière → lecteur web
+      rows.querySelectorAll('.card').forEach(card => {
+        card.addEventListener('click', () => {
+          if (!card.dataset.id) return;
+          window.location.href = `/player?id=${card.dataset.id}`;
+        });
+      });
+    }
+
+    // ── Card HTML ─────────────────────────────────────────────
+    function cardHTML(m) {
+      const token = getToken();
+      const enc   = encodeURIComponent(token);
+      return `
+        <div class="card" data-id="${m.id}">
+          <div class="card-thumb">
+            <span class="card-thumb-icon">🎬</span>
+            <span class="card-ext">${m.extension}</span>
+            <div class="card-overlay">
+              <button class="card-btn" title="Lire"
+                onclick="event.stopPropagation(); play('${m.id}')">▶</button>
+              <button class="card-btn btn-vlc" title="Ouvrir dans VLC"
+                onclick="event.stopPropagation(); openVLC('${m.id}', '${enc}')">📺</button>
+            </div>
+          </div>
+          <div class="card-info">
+            <div class="card-name" title="${escHtml(m.name)}">${escHtml(m.name)}</div>
+            <div class="card-meta">${formatSize(m.size)}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function play(id) {
+      window.location.href = `/player?id=${id}`;
+    }
+
+    function openVLC(id, encodedToken) {
+      if (/Android/i.test(navigator.userAgent)) {
+        openVLCAndroid(id, encodedToken);
+      } else {
+        // PC / Mac / iOS : fichier .m3u → association système vers VLC
+        window.location = `/stream/${id}/vlc?token=${encodedToken}`;
+      }
+    }
+
+    // ── VLC Android ───────────────────────────────────────────
+    // Format intent correct pour VLC Android installé depuis le Play Store.
+    // Référence : https://wiki.videolan.org/Android_Player_Intents/
+    //
+    // Structure :
+    //   intent://<host>/<path>?<query>#Intent;scheme=http;package=org.videolan.vlc;
+    //                                  action=android.intent.action.VIEW;end
+    //
+    // Le fallback S.browser_fallback_url est requis pour que Chrome ne bloque
+    // pas l'intent sur les pages HTTP (comportement Chrome 83+).
+    function openVLCAndroid(id, encodedToken) {
+      const host     = location.host;
+      const path     = `stream/${id}`;
+      const query    = `token=${encodedToken}`;
+      const fallback = encodeURIComponent(`${location.origin}/stream/${id}/vlc?token=${encodedToken}`);
+
+      const intentURL =
+        `intent://${host}/${path}?${query}` +
+        `#Intent;` +
+        `scheme=http;` +
+        `package=org.videolan.vlc;` +
+        `action=android.intent.action.VIEW;` +
+        `S.browser_fallback_url=${fallback};` +
+        `end`;
+
+      window.location = intentURL;
+    }
+
+    // ── Toggle collapse row ───────────────────────────────────
+    function toggleRow(header) {
+      const grid   = header.nextElementSibling;
+      const arrow  = header.querySelector('.row-arrow');
+      const isOpen = grid.style.maxHeight !== '0px';
+
+      grid.style.maxHeight   = isOpen ? '0px' : '2000px';
+      grid.style.overflow    = isOpen ? 'hidden' : 'visible';
+      grid.style.opacity     = isOpen ? '0' : '1';
+      arrow.style.transform  = isOpen ? 'rotate(-90deg)' : 'rotate(0)';
+    }
+
+    // ── Recherche debounce ────────────────────────────────────
+    let debounce;
+    document.getElementById('searchInput').addEventListener('input', e => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => { searchTerm = e.target.value; render(); }, 200);
+    });
+
+    // ── Helpers ───────────────────────────────────────────────
+    function formatSize(bytes) {
+      if (!bytes) return '';
+      if (bytes < 1048576)      return (bytes / 1024).toFixed(0) + ' KB';
+      if (bytes < 1073741824)   return (bytes / 1048576).toFixed(1) + ' MB';
+      return (bytes / 1073741824).toFixed(2) + ' GB';
+    }
+
+    function escHtml(s) {
+      return s
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;');
+    }
+
+    // ── Init ──────────────────────────────────────────────────
+    load();
+  </script>
 </body>
 </html>

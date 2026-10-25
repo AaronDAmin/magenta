@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Magenta — Administration</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <!-- ── Navbar ── -->
+  <nav class="navbar solid">
+    <a href="/" class="navbar-brand">MAGENTA<span>.</span></a>
+    <div class="navbar-right">
+      <span style="font-size:0.8rem;color:var(--text-muted);">Panel Admin</span>
+    </div>
+  </nav>
+
+  <div class="admin-page">
+
+    <div class="admin-header">
+      <h1>⚙️ Administration</h1>
+      <p>Accessible uniquement depuis localhost · Gérez les accès utilisateurs</p>
+    </div>
+
+    <div class="admin-content">
+
+      <!-- Stats -->
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card">
+          <div class="stat-card-value" id="statTotal">—</div>
+          <div class="stat-card-label">Utilisateurs total</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-value" id="statPending" style="color:var(--warning)">—</div>
+          <div class="stat-card-label">En attente</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-value" id="statApproved" style="color:var(--success)">—</div>
+          <div class="stat-card-label">Approuvés</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-value" id="statRevoked" style="color:#ff6b6b">—</div>
+          <div class="stat-card-label">Révoqués</div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="admin-tabs">
+        <button class="tab-btn active" onclick="switchTab('pending', this)">
+          En attente
+          <span class="badge" id="badgePending"></span>
+        </button>
+        <button class="tab-btn" onclick="switchTab('all', this)">
+          Tous les utilisateurs
+        </button>
+      </div>
+
+      <!-- Tab: En attente -->
+      <div id="tab-pending" class="tab-content active">
+        <div id="msg-pending" class="msg" style="display:none;margin-bottom:1rem;"></div>
+        <div id="pendingTable"></div>
+      </div>
+
+      <!-- Tab: Tous -->
+      <div id="tab-all" class="tab-content">
+        <div id="msg-all" class="msg" style="display:none;margin-bottom:1rem;"></div>
+        <div id="allTable"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    let allUsers = [];
+
+    // ── Tabs ──────────────────────────────────────────────────
+    function switchTab(name, btn) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(`tab-${name}`).classList.add('active');
+    }
+
+    // ── Chargement ────────────────────────────────────────────
+    async function load() {
+      try {
+        const res = await fetch('/admin/users');
+        if (!res.ok) {
+          if (res.status === 403) {
+            document.body.innerHTML = `
+              <div style="text-align:center;padding:6rem 2rem;color:var(--text-muted);">
+                <div style="font-size:3rem;margin-bottom:1rem">🔒</div>
+                <h2 style="color:var(--text);margin-bottom:.5rem">Accès refusé</h2>
+                <p>Le panel admin est accessible uniquement depuis localhost.</p>
+              </div>`;
+            return;
+          }
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+        allUsers = data.users || [];
+
+        updateStats(data);
+        renderPending();
+        renderAll();
+
+      } catch (e) {
+        console.error('Erreur:', e);
+      }
+    }
+
+    function updateStats(data) {
+      const pending  = allUsers.filter(u => u.status === 'pending').length;
+      const approved = allUsers.filter(u => u.status === 'approved').length;
+      const revoked  = allUsers.filter(u => u.status === 'revoked').length;
+
+      document.getElementById('statTotal').textContent   = data.total || 0;
+      document.getElementById('statPending').textContent  = pending;
+      document.getElementById('statApproved').textContent = approved;
+      document.getElementById('statRevoked').textContent  = revoked;
+
+      const badge = document.getElementById('badgePending');
+      badge.textContent = pending;
+      badge.style.display = pending > 0 ? 'inline-flex' : 'none';
+    }
+
+    // ── Table "En attente" ────────────────────────────────────
+    function renderPending() {
+      const users = allUsers.filter(u => u.status === 'pending');
+      const el = document.getElementById('pendingTable');
+
+      if (users.length === 0) {
+        el.innerHTML = '<div class="empty-table">✅ Aucune demande en attente</div>';
+        return;
+      }
+
+      el.innerHTML = `
+        <table class="users-table">
+          <thead>
+            <tr>
+              <th>Utilisateur</th>
+              <th>Demande le</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${users.map(u => `
+              <tr id="row-${u.id}">
+                <td><strong>${escHtml(u.username)}</strong></td>
+                <td style="color:var(--text-muted);font-size:.85rem">${u.requested_at}</td>
+                <td>
+                  <div class="action-btns">
+                    <button class="btn-approve" onclick="approve('${u.id}')">✓ Approuver</button>
+                    <button class="btn-revoke" onclick="revoke('${u.id}')">✕ Refuser</button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // ── Table "Tous" ──────────────────────────────────────────
+    function renderAll() {
+      const el = document.getElementById('allTable');
+
+      if (allUsers.length === 0) {
+        el.innerHTML = '<div class="empty-table">Aucun utilisateur enregistré</div>';
+        return;
+      }
+
+      el.innerHTML = `
+        <table class="users-table">
+          <thead>
+            <tr>
+              <th>Utilisateur</th>
+              <th>Statut</th>
+              <th>Demande le</th>
+              <th>Approuvé le</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${allUsers.map(u => `
+              <tr id="row-all-${u.id}">
+                <td><strong>${escHtml(u.username)}</strong></td>
+                <td>${statusBadge(u.status)}</td>
+                <td style="color:var(--text-muted);font-size:.85rem">${u.requested_at}</td>
+                <td style="color:var(--text-muted);font-size:.85rem">${u.approved_at || '—'}</td>
+                <td>
+                  <div class="action-btns">
+                    ${u.status === 'pending'   ? `<button class="btn-approve" onclick="approve('${u.id}')">✓ Approuver</button>` : ''}
+                    ${u.status === 'approved'  ? `<button class="btn-revoke" onclick="revoke('${u.id}')">Révoquer</button>` : ''}
+                    ${u.status === 'revoked'   ? `<button class="btn-approve" onclick="approve('${u.id}')">Réactiver</button>` : ''}
+                    <button class="btn-delete" onclick="del('${u.id}')">Supprimer</button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    function statusBadge(status) {
+      const labels = { pending: '⏳ En attente', approved: '✓ Approuvé', revoked: '✕ Révoqué' };
+      return `<span class="status-badge ${status}">${labels[status] || status}</span>`;
+    }
+
+    // ── Actions ───────────────────────────────────────────────
+    async function approve(id) {
+      try {
+        const res = await fetch(`/admin/users/${id}/approve`, { method: 'POST' });
+        if (!res.ok) {
+          const d = await res.json();
+          showMsg('pending', d.error || 'Erreur', 'error');
+          return;
+        }
+        showMsg('pending', 'Utilisateur approuvé ✓', 'success');
+        await load();
+      } catch (e) {
+        showMsg('pending', 'Erreur réseau', 'error');
+      }
+    }
+
+    async function revoke(id) {
+      if (!confirm('Révoquer l\'accès de cet utilisateur ?')) return;
+      try {
+        const res = await fetch(`/admin/users/${id}/revoke`, { method: 'POST' });
+        if (!res.ok) {
+          showMsg('all', 'Erreur lors de la révocation', 'error');
+          return;
+        }
+        await load();
+      } catch (e) {
+        showMsg('all', 'Erreur réseau', 'error');
+      }
+    }
+
+    async function del(id) {
+      if (!confirm('Supprimer définitivement cet utilisateur ?')) return;
+      try {
+        await fetch(`/admin/users/${id}`, { method: 'DELETE' });
+        await load();
+      } catch (e) {
+        showMsg('all', 'Erreur réseau', 'error');
+      }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────
+    function showMsg(tab, text, type) {
+      const el = document.getElementById(`msg-${tab}`);
+      el.textContent = text;
+      el.className   = `msg ${type}`;
+      el.style.display = 'block';
+      setTimeout(() => { el.style.display = 'none'; }, 4000);
+    }
+
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ── Rafraîchissement auto ─────────────────────────────────
+    setInterval(load, 15000); // refresh toutes les 15s
+
+    // ── Init ──────────────────────────────────────────────────
+    load();
+  </script>
+</body>
+</html>

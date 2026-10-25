@@ -1,137 +1,274 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Magenta - Lecteur</title>
-    <link rel="stylesheet" href="/static/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Magenta — Lecteur</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
-    <header>
-        <div class="container">
-            <a href="/" class="logo">🎬 Magenta</a>
-            <div style="color: var(--text-secondary);" id="mediaTitle">Chargement...</div>
-        </div>
-    </header>
+<body class="player-page">
 
-    <div class="container player-wrapper">
-        <video id="videoPlayer" controls autoplay>
-            Votre navigateur ne supporte pas la lecture vidéo.
-        </video>
-
-        <div class="player-controls">
-            <button class="btn-secondary" onclick="window.location.href='/'">
-                ← Retour à la bibliothèque
-            </button>
-            <button class="btn-secondary" id="nextBtn" style="display: none;">
-                Épisode suivant →
-            </button>
-        </div>
+  <!-- ── Nav player ── -->
+  <nav class="player-nav" id="playerNav">
+    <div class="player-back" onclick="goBack()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polyline points="15 18 9 12 15 6"/>
+      </svg>
+      Bibliothèque
     </div>
+    <div class="player-title-nav" id="navTitle">Chargement...</div>
+    <div></div>
+  </nav>
 
-    <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const mediaId = urlParams.get('id');
-        const video = document.getElementById('videoPlayer');
-        const nextBtn = document.getElementById('nextBtn');
+  <!-- ── Vidéo ── -->
+  <div class="video-container">
+    <video id="video" controls preload="auto">
+      Votre navigateur ne supporte pas la lecture vidéo HTML5.
+    </video>
+  </div>
 
-        // Récupération du token depuis le cookie
-        function getToken() {
-            const match = document.cookie.match(/magenta_token=([^;]+)/);
-            return match ? match[1] : null;
-        }
+  <!-- ── Infos sous la vidéo ── -->
+  <div class="player-info">
+    <div class="player-info-title" id="mediaTitle">Chargement...</div>
+    <div class="player-info-meta" id="mediaMeta"></div>
+    <div class="player-actions">
+      <button class="btn-secondary" onclick="goBack()">
+        ← Bibliothèque
+      </button>
+      <button class="btn-vlc-player" id="vlcBtn" style="display:none;"
+              onclick="openVLC()">
+        📺 Ouvrir dans VLC
+      </button>
+      <button class="btn-secondary" id="nextBtn" style="display:none;"
+              onclick="playNext()">
+        Épisode suivant →
+      </button>
+    </div>
+  </div>
 
-        // Chargement du média
-        async function loadMedia() {
-            const token = getToken();
-            if (!token) {
-                window.location.href = '/login';
-                return;
-            }
+  <!-- ── Banner épisode suivant ── -->
+  <div class="next-banner" id="nextBanner">
+    <div>
+      <div class="next-banner-text">Suivant :</div>
+      <div class="next-banner-title" id="nextBannerTitle"></div>
+    </div>
+    <button class="next-banner-btn" onclick="playNext()">Lire →</button>
+  </div>
 
-            if (!mediaId) {
-                window.location.href = '/';
-                return;
-            }
+  <script>
+    const params  = new URLSearchParams(location.search);
+    const mediaId = params.get('id');
+    const video   = document.getElementById('video');
 
-            try {
-                // Récupération des infos du média
-                const response = await fetch(`/api/media?token=${encodeURIComponent(token)}`);
-                const data = await response.json();
-                const media = data.items.find(m => m.id === mediaId);
-                
-                if (!media) {
-                    alert('Média introuvable');
-                    window.location.href = '/';
-                    return;
-                }
+    let currentMedia  = null;
+    let nextMedia     = null;
+    let nextTimer     = null;
+    let authCheckTimer = null;  // polling périodique du token
+    let streamStopped = false;  // garde-fou anti-boucle
 
-                document.getElementById('mediaTitle').textContent = media.name;
-                document.title = `${media.name} - Magenta`;
+    // ── Token ─────────────────────────────────────────────────
+    function getToken() {
+      const m = document.cookie.match(/magenta_token=([^;]+)/);
+      return m ? decodeURIComponent(m[1]) : null;
+    }
 
-                // Configuration de la source vidéo
-                video.src = `/stream/${mediaId}?token=${encodeURIComponent(token)}`;
+    function clearToken() {
+      document.cookie = 'magenta_token=; path=/; max-age=-1';
+    }
 
-                // Vérification si un épisode suivant existe
-                checkNextEpisode(mediaId, token);
+    function goBack() {
+      window.location.href = '/';
+    }
 
-            } catch (error) {
-                console.error('Erreur:', error);
-                alert('Erreur de chargement du média');
-                window.location.href = '/';
-            }
-        }
+    // ── Chargement ────────────────────────────────────────────
+    async function load() {
+      const token = getToken();
+      if (!token) { window.location.href = '/login'; return; }
+      if (!mediaId) { goBack(); return; }
 
-        // Vérification de l'existence d'un épisode suivant
-        async function checkNextEpisode(id, token) {
-            try {
-                const response = await fetch(`/api/media/${id}/next?token=${encodeURIComponent(token)}`);
-                
-                if (response.ok) {
-                    const nextMedia = await response.json();
-                    nextBtn.style.display = 'block';
-                    nextBtn.onclick = () => {
-                        window.location.href = `/player?id=${nextMedia.id}`;
-                    };
-
-                    // Auto-play du suivant à la fin de la vidéo
-                    video.addEventListener('ended', () => {
-                        setTimeout(() => {
-                            window.location.href = `/player?id=${nextMedia.id}`;
-                        }, 2000);
-                    });
-                }
-            } catch (error) {
-                // Pas d'épisode suivant, pas grave
-            }
-        }
-
-        // Raccourcis clavier
-        document.addEventListener('keydown', (e) => {
-            if (e.code === 'Space') {
-                e.preventDefault();
-                if (video.paused) {
-                    video.play();
-                } else {
-                    video.pause();
-                }
-            } else if (e.code === 'ArrowLeft') {
-                video.currentTime = Math.max(0, video.currentTime - 10);
-            } else if (e.code === 'ArrowRight') {
-                video.currentTime = Math.min(video.duration, video.currentTime + 10);
-            } else if (e.code === 'KeyF') {
-                if (document.fullscreenElement) {
-                    document.exitFullscreen();
-                } else {
-                    video.requestFullscreen();
-                }
-            } else if (e.code === 'KeyM') {
-                video.muted = !video.muted;
-            }
+      try {
+        // 1. Vérifier que le token est valide AVANT de toucher à la vidéo
+        const check = await fetch('/api/media', {
+          headers: { 'Authorization': `Bearer ${token}` }
         });
 
-        // Chargement initial
-        loadMedia();
-    </script>
+        if (check.status === 401) {
+          clearToken();
+          window.location.href = '/login';
+          return;
+        }
+
+        const data = await check.json();
+        currentMedia = (data.items || []).find(m => m.id === mediaId);
+        if (!currentMedia) { goBack(); return; }
+
+        // 2. Mettre à jour l'UI
+        document.title = `${currentMedia.name} — Magenta`;
+        document.getElementById('navTitle').textContent   = currentMedia.name;
+        document.getElementById('mediaTitle').textContent = currentMedia.name;
+        document.getElementById('mediaMeta').innerHTML    = metaHTML(currentMedia);
+        document.getElementById('vlcBtn').style.display   = 'inline-flex';
+
+        // 3. Assigner la source vidéo seulement si le token est bon
+        video.src = `/stream/${mediaId}?token=${encodeURIComponent(token)}`;
+
+        // 4. Polling toutes les 30s pour détecter une révocation en cours de lecture
+        //    C'est plus fiable que l'event 'error' qui ne se déclenche pas sur 401
+        authCheckTimer = setInterval(checkTokenStillValid, 30000);
+
+        // 5. Épisode suivant
+        checkNext(token);
+
+      } catch (e) {
+        console.error('Erreur chargement:', e);
+        goBack();
+      }
+    }
+
+    // ── Vérification périodique du token ──────────────────────
+    // Le navigateur ne lève pas d'événement 'error' sur un 401 HTTP pour les streams.
+    // On poll l'API toutes les 30s pour détecter une révocation proprement.
+    async function checkTokenStillValid() {
+      if (streamStopped) return;
+      try {
+        const r = await fetch('/api/media', {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+        if (r.status === 401) {
+          handleRevoked();
+        }
+      } catch (e) {
+        // Erreur réseau temporaire, on ne fait rien
+      }
+    }
+
+    // ── Gestion révocation ────────────────────────────────────
+    function handleRevoked() {
+      if (streamStopped) return;
+      streamStopped = true;
+
+      // Arrêt du polling et de la vidéo en une seule opération synchrone
+      clearInterval(authCheckTimer);
+      video.pause();
+      video.removeAttribute('src');
+      video.load(); // annule toutes les requêtes réseau en cours du player
+
+      clearToken();
+      window.location.href = '/login';
+    }
+
+    function metaHTML(m) {
+      const parts = [];
+      parts.push(`<span>${m.extension.toUpperCase()}</span>`);
+      if (m.size) parts.push(`<span>${formatSize(m.size)}</span>`);
+      if (m.modified_at) {
+        const d = new Date(m.modified_at);
+        parts.push(`<span>${d.getFullYear()}</span>`);
+      }
+      return parts.join('<span style="opacity:.3">·</span>');
+    }
+
+    // ── Épisode suivant ───────────────────────────────────────
+    async function checkNext(token) {
+      try {
+        const res = await fetch(`/api/media/${mediaId}/next`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+
+        nextMedia = await res.json();
+        document.getElementById('nextBtn').style.display = 'inline-flex';
+
+        video.addEventListener('timeupdate', () => {
+          if (!video.duration) return;
+          const remaining = video.duration - video.currentTime;
+          if (remaining <= 30 && remaining > 0) showNextBanner();
+          else hideNextBanner();
+        });
+
+        video.addEventListener('ended', () => {
+          showNextBanner();
+          nextTimer = setTimeout(playNext, 5000);
+        });
+
+      } catch (e) { /* pas d'épisode suivant */ }
+    }
+
+    function showNextBanner() {
+      if (!nextMedia) return;
+      const banner = document.getElementById('nextBanner');
+      document.getElementById('nextBannerTitle').textContent = nextMedia.name;
+      banner.style.display = 'flex';
+    }
+
+    function hideNextBanner() {
+      document.getElementById('nextBanner').style.display = 'none';
+      if (nextTimer) { clearTimeout(nextTimer); nextTimer = null; }
+    }
+
+    function playNext() {
+      if (!nextMedia) return;
+      window.location.href = `/player?id=${nextMedia.id}`;
+    }
+
+    function openVLC() {
+      const token = getToken();
+      const enc   = encodeURIComponent(token);
+
+      if (/Android/i.test(navigator.userAgent)) {
+        const host     = location.host;
+        const path     = `stream/${mediaId}`;
+        const fallback = encodeURIComponent(`${location.origin}/stream/${mediaId}/vlc?token=${enc}`);
+
+        window.location =
+          `intent://${host}/${path}?token=${enc}` +
+          `#Intent;` +
+          `scheme=http;` +
+          `package=org.videolan.vlc;` +
+          `action=android.intent.action.VIEW;` +
+          `S.browser_fallback_url=${fallback};` +
+          `end`;
+      } else {
+        // PC / Mac / iOS : fichier .m3u → association système vers VLC
+        window.location = `/stream/${mediaId}/vlc?token=${enc}`;
+      }
+    }
+
+    // ── Raccourcis clavier ────────────────────────────────────
+    document.addEventListener('keydown', e => {
+      if (['INPUT','TEXTAREA'].includes(e.target.tagName)) return;
+      switch (e.code) {
+        case 'Space':
+          e.preventDefault();
+          video.paused ? video.play() : video.pause();
+          break;
+        case 'ArrowLeft':
+          video.currentTime = Math.max(0, video.currentTime - 10);
+          break;
+        case 'ArrowRight':
+          video.currentTime = Math.min(video.duration || 0, video.currentTime + 10);
+          break;
+        case 'KeyF':
+          document.fullscreenElement ? document.exitFullscreen() : video.requestFullscreen();
+          break;
+        case 'KeyM':
+          video.muted = !video.muted;
+          break;
+        case 'Escape':
+          hideNextBanner();
+          break;
+      }
+    });
+
+    // ── Helpers ───────────────────────────────────────────────
+    function formatSize(bytes) {
+      if (!bytes) return '';
+      if (bytes < 1073741824) return (bytes / 1048576).toFixed(1) + ' MB';
+      return (bytes / 1073741824).toFixed(2) + ' GB';
+    }
+
+    // ── Init ──────────────────────────────────────────────────
+    load();
+  </script>
 </body>
 </html>

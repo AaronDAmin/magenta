@@ -265,9 +265,12 @@ func (s *Server) handleVLC(w http.ResponseWriter, r *http.Request) {
 	// Nom du fichier .m3u basé sur le nom du média
 	filename := strings.TrimSuffix(m.Name, "."+m.Extension) + ".m3u"
 
-	// Headers pour déclencher le téléchargement
-	w.Header().Set("Content-Type", "audio/x-mpegurl")
+	// Sur Android, "application/x-mpegurl" est mieux reconnu que "audio/x-mpegurl"
+	// pour déclencher l'association avec VLC.
+	// On désactive le cache pour éviter qu'Android serve un vieux fichier.
+	w.Header().Set("Content-Type", "application/x-mpegurl")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	w.Header().Set("Cache-Control", "no-store")
 
 	// Contenu M3U minimal — VLC l'ouvre directement
 	fmt.Fprintln(w, "#EXTM3U")

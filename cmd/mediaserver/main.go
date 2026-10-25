@@ -1,6 +1,4 @@
-// Package main est le point d'entrée du serveur multimédia Magenta.
-// Il orchestre le chargement de la configuration, l'initialisation du logger,
-// et le démarrage du serveur HTTP.
+// Package main — point d'entrée du serveur multimédia Magenta.
 package main
 
 import (
@@ -27,16 +25,10 @@ import (
 //go:embed all:web
 var webFS embed.FS
 
-// version est injectée au moment du build via -ldflags.
-// Exemple : go build -ldflags "-X main.version=1.0.0"
 var version = "dev"
 
 func main() {
-	// --- Parsing des arguments CLI ---
-
-	// Chemin vers le fichier de configuration (peut être surchargé via flag)
 	configPath := flag.String("config", "config.yaml", "chemin vers le fichier de configuration")
-	// Afficher la version et quitter
 	showVersion := flag.Bool("version", false, "afficher la version et quitter")
 	flag.Parse()
 
@@ -45,15 +37,14 @@ func main() {
 		os.Exit(0)
 	}
 
-	// --- Chargement de la configuration ---
+	// ── Configuration ──────────────────────────────────────────────────────
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		// Le logger n'est pas encore initialisé ici, on utilise stderr directement
-		fmt.Fprintf(os.Stderr, "ERREUR : impossible de charger la configuration : %v\n", err)
+		fmt.Fprintf(os.Stderr, "ERREUR : configuration : %v\n", err)
 		os.Exit(1)
 	}
 
-	// --- Initialisation du logger ---
+	// ── Logger ─────────────────────────────────────────────────────────────
 	logLevel := parseLogLevel(cfg.Log.Level)
 	log := logger.New(logLevel, cfg.Log.JSON)
 
@@ -61,41 +52,38 @@ func main() {
 		slog.String("version", version),
 		slog.String("config", *configPath),
 	)
-	log.Debug("configuration chargée", slog.String("config", cfg.String()))
 
-	// --- Initialisation du store d'authentification ---
-	authStore, err := auth.NewStore("devices.json", log)
+	// ── Store utilisateurs ─────────────────────────────────────────────────
+	userStore, err := auth.NewUserStore("users.json", log)
 	if err != nil {
-		log.Error("impossible de charger le store d'authentification", slog.String("erreur", err.Error()))
+		log.Error("impossible de charger le store utilisateurs", slog.String("erreur", err.Error()))
 		os.Exit(1)
 	}
-	log.Info("store d'authentification initialisé", slog.Int("appareils", authStore.Count()))
+	log.Info("store utilisateurs initialisé", slog.Int("utilisateurs", userStore.Count()))
 
-	// --- Initialisation de l'index et du scanner ---
+	// ── Index médias + scanner ─────────────────────────────────────────────
 	index := media.NewIndex()
 	scanner := media.NewScanner(cfg, log, index)
 
-	// Scan initial en arrière-plan (ne bloque pas le démarrage du serveur)
 	go func() {
 		if err := scanner.ScanAll(); err != nil {
-			log.Error("erreur lors du scan initial", slog.String("erreur", err.Error()))
+			log.Error("erreur scan initial", slog.String("erreur", err.Error()))
 		}
 	}()
 
-	// --- Démarrage du watcher pour surveiller les changements ---
+	// ── Watcher fichiers ───────────────────────────────────────────────────
 	watcher, err := media.NewWatcher(cfg, log, index, scanner)
 	if err != nil {
 		log.Error("impossible de créer le watcher", slog.String("erreur", err.Error()))
 		os.Exit(1)
 	}
-
 	go func() {
 		if err := watcher.Start(); err != nil {
-			log.Error("erreur du watcher", slog.String("erreur", err.Error()))
+			log.Error("erreur watcher", slog.String("erreur", err.Error()))
 		}
 	}()
 
-	// --- Démarrage du mDNS (découverte réseau) ---
+	// ── mDNS ───────────────────────────────────────────────────────────────
 	var mdnsServer *mdns.Server
 	if cfg.MDNS.Enabled {
 		name := cfg.MDNS.Name
@@ -104,46 +92,35 @@ func main() {
 		}
 		mdnsServer, err = mdns.New(log, name, cfg.Server.Port)
 		if err != nil {
-			// mDNS non critique : on logge l'erreur mais on continue
-			log.Warn("mDNS indisponible, le serveur reste accessible par IP",
-				slog.String("erreur", err.Error()),
-			)
+			log.Warn("mDNS indisponible", slog.String("erreur", err.Error()))
 		}
 	}
 
-	// --- Gestion des signaux système pour un arrêt propre ---
-	// On écoute SIGINT (Ctrl+C) et SIGTERM (signal d'arrêt système)
+	// ── Signaux système ────────────────────────────────────────────────────
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	// --- Initialisation et démarrage du serveur HTTP ---
-	srv := server.New(cfg, log, index, authStore, webFS)
+	// ── Serveur HTTP ───────────────────────────────────────────────────────
+	srv := server.New(cfg, log, index, userStore, webFS)
 
-	// --- Configuration TLS (HTTPS) si activée ---
 	if cfg.TLS.Enabled {
 		certCfg := internaltls.CertConfig{
 			CertFile: cfg.TLS.CertFile,
 			KeyFile:  cfg.TLS.KeyFile,
 		}
-		// Hosts couverts par le certificat (IP locale + magenta.local)
 		hosts := []string{"magenta.local", cfg.Server.Host}
-
 		tlsConfig, err := internaltls.LoadOrGenerate(certCfg, log, hosts)
 		if err != nil {
 			log.Error("impossible d'initialiser TLS", slog.String("erreur", err.Error()))
 			os.Exit(1)
 		}
-
 		srv.EnableTLS(tlsConfig, cfg.TLS.Port)
-		log.Info("HTTPS activé",
-			slog.Int("port", cfg.TLS.Port),
-			slog.String("url", fmt.Sprintf("https://magenta.local:%d", cfg.TLS.Port)),
-		)
+		log.Info("HTTPS activé", slog.Int("port", cfg.TLS.Port))
 	}
 
 	srv.Start()
 
-	// --- Affichage du banner avec les URLs et le QR code ---
+	// ── Banner ─────────────────────────────────────────────────────────────
 	mdnsName := ""
 	if cfg.MDNS.Enabled {
 		mdnsName = cfg.MDNS.Name
@@ -153,35 +130,28 @@ func main() {
 		Name: mdnsName,
 	})
 
-	// Attente du signal d'arrêt
+	// ── Attente signal arrêt ───────────────────────────────────────────────
 	<-ctx.Done()
-	log.Info("signal d'arrêt reçu, extinction en cours...")
+	log.Info("signal d'arrêt reçu...")
 
-	// Arrêt du watcher
 	if err := watcher.Stop(); err != nil {
-		log.Error("erreur lors de l'arrêt du watcher", slog.String("erreur", err.Error()))
+		log.Error("erreur arrêt watcher", slog.String("erreur", err.Error()))
 	}
-
-	// Arrêt du mDNS
 	if mdnsServer != nil {
 		mdnsServer.Stop()
 	}
 
-	// Arrêt propre avec un timeout de 10 secondes pour laisser les connexions actives se terminer
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Error("erreur lors de l'arrêt du serveur", slog.String("erreur", err.Error()))
+		log.Error("erreur arrêt serveur", slog.String("erreur", err.Error()))
 		os.Exit(1)
 	}
 
 	log.Info("magenta arrêté proprement")
 }
 
-// parseLogLevel convertit une chaîne de caractères en niveau slog.
-// Valeurs acceptées : "debug", "info", "warn", "error".
-// Retourne LevelInfo si la valeur est inconnue.
 func parseLogLevel(level string) logger.Level {
 	switch level {
 	case "debug":
