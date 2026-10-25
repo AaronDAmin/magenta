@@ -34,6 +34,8 @@
 
 <br/>
 
+<img src="assets/Magenta Cinematic Media Dashboard.png" alt="Magenta Interface" width="90%" style="border-radius: 16px;" />
+
 <sub><sup>✦ &nbsp; Netflix-style library · Built-in video player · Admin panel · VLC integration &nbsp; ✦</sup></sub>
 
 <br/>
